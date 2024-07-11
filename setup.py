@@ -33,7 +33,7 @@ core_requirements = [
     "imageio",
     "pyquaternion",
     "mujoco_utils",
-    "cloudpathlib[gs]",
+    "wget",
     "mojo @ git+https://git@github.com/stepjam/mojo.git@dev",
     "pyyaml",
 ]

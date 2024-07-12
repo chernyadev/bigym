@@ -10,8 +10,6 @@ jobs:
   build:
 
     runs-on: ubuntu-20.04
-    env:
-      DISPLAY: :0
 
     steps:
     - name: Check out repository
@@ -24,13 +22,16 @@ jobs:
 
     - name: Install dependencies
       run: |
-        sudo apt-get update -qq
-        sudo apt-get install -y xvfb libxml2-utils qtbase5-dev qtdeclarative5-dev libqt5webkit5-dev libsqlite3-dev qt5-default qttools5-dev-tools
-        # start xvfb in the background
-        sudo /usr/bin/Xvfb $DISPLAY -screen 0 1280x1024x24 &
-        cur=`pwd`
+        sudo apt-get update
+        sudo apt-get install -y libxml2-utils xvfb libgl1-mesa-dev libgl1-mesa-glx libosmesa6-dev
         python -m pip install --upgrade pip
-        pip install ".[dev]"
+        pip install .
+        pip install pre-commit
+
+    - name: Start Xvfb
+      run: |
+        sudo Xvfb :99 -ac &
+        export DISPLAY=:99
 
     - name: Run pre-commit checks
       run: |
@@ -38,4 +39,5 @@ jobs:
 
     - name: Run tests
       run: |
+        export DISPLAY=:99
         pytest tests/

@@ -1,3 +1,7 @@
+<h1>
+  <a href="#"><img alt="BiGym" src="doc/images/bigym.png" width="100%"></a>
+</h1>
+
 <p>
   <a href="https://github.com/chernyadev/bigym/actions/workflows/build.yaml?query=branch%3Amaster" alt="GitHub Actions">
     <img src="https://img.shields.io/github/actions/workflow/status/chernyadev/bigym/build.yaml?branch=master">
@@ -7,9 +11,7 @@
   </a>
 </p>
 
-# BiGym
-
-BiGym is a collection of **Bi**-ped & **Bi**-manual Gym Tasks.
+**BiGym** is a Demo-Driven Mobile Bi-Manual Manipulation Benchmark.
 
 ## Table of Contents
 

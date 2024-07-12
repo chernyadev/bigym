@@ -32,6 +32,7 @@ jobs:
     - name: Start Xvfb
       run: |
         Xvfb :99 -ac &
+        echo "DISPLAY=:99" >> $GITHUB_ENV
     - name: Run tests
       env:
         DISPLAY: :99

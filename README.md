@@ -2,6 +2,9 @@
   <a href="https://github.com/chernyadev/bigym/actions/workflows/build.yaml?query=branch%3Amaster" alt="GitHub Actions">
     <img src="https://img.shields.io/github/actions/workflow/status/chernyadev/bigym/build.yaml?branch=master">
   </a>
+  <a href="#contributing">
+    <img src="https://img.shields.io/badge/PRs-welcome-green.svg" alt="PRs" height="20">
+  </a>
 </p>
 
 # BiGym
@@ -108,8 +111,8 @@ Replay existing demos using GUI player.
 python tools/demo_player/main.py
 ```
 
-<img src="doc/images/demo_player/player_window.png" height=360>
-<img src="doc/images/demo_player/player_mujoco.png" height=360>
+<img src="doc/images/demo_player/player_window.png" width=360>
+<img src="doc/images/demo_player/player_mujoco.png" width=360>
 
 ### [VR Demo Recorder](tools/demo_recorder/main.py)
 
@@ -119,7 +122,7 @@ Record new demos in VR. Follow [VR README](vr/README.md) to configure docker con
 python tools/demo_recorder/main.py
 ```
 
-<img src="doc/images/demo_recorder/demo_recorder.png" height=360>
+<img src="doc/images/demo_recorder/demo_recorder.png" width=360>
 
 ## Contributing
 

@@ -1,5 +1,5 @@
 """H1 upper body IK solver."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import mujoco
 import numpy as np
@@ -39,7 +39,7 @@ JOINT_LIMITS = {
 class Pose:
     """Pose represented by np.ndarray and Quaternion."""
 
-    position: np.ndarray = np.zeros(3)
+    position: np.ndarray = field(default_factory=lambda: np.zeros(3))
     orientation: Quaternion = Quaternion()
 
 

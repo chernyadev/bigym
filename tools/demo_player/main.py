@@ -1,5 +1,4 @@
 """A simple GUI to view and replay the collected demos."""
-import os
 
 
 from tools.demo_player.demo_player_window import DemoPlayerWindow

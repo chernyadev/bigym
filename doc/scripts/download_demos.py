@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from bigym.action_modes import JointPositionActionMode, PelvisDof

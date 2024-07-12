@@ -11,19 +11,15 @@ on:
       - "**/README.md"
 
 jobs:
-  build:
-
+  bigym:
     runs-on: ubuntu-20.04
-
     steps:
     - name: Check out repository
       uses: actions/checkout@v3
-
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: "3.11"
-
     - name: Install dependencies
       run: |
         sudo apt-get update
@@ -31,14 +27,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install ".[dev]"
         pip install pre-commit
-
     - name: Run pre-commit checks
       run: pre-commit run --all-files
-
     - name: Start Xvfb
       run: |
         Xvfb :99 -ac &
-
     - name: Run tests
       env:
         DISPLAY: :99

@@ -10,12 +10,14 @@ from mojo.elements.consts import GeomType
 
 from bigym.bigym_env import BiGymEnv
 from bigym.const import HandSide
+from bigym.robots.robot import Robot
 
 
 @dataclass
 class TargetConfig:
     """Target Config."""
 
+    target_hands: list[HandSide]
     reset_position: np.ndarray = field(default_factory=lambda: np.zeros(3))
     size: np.ndarray = field(default_factory=lambda: np.array([0.05, 0.05, 0.05]))
     color_default: np.ndarray = field(default_factory=lambda: np.array([1, 0, 0, 1]))
@@ -25,8 +27,9 @@ class TargetConfig:
 class Target:
     """Target sphere."""
 
-    def __init__(self, mojo: Mojo, config: TargetConfig):
+    def __init__(self, mojo: Mojo, robot: Robot, config: TargetConfig):
         """Init."""
+        self._robot = robot
         self._config = config
         self.body = Body.create(mojo)
         self.geom: Geom = Geom.create(
@@ -47,14 +50,17 @@ class Target:
         """Get distance to target."""
         return float(np.linalg.norm(self.body.get_position() - pos))
 
-    def is_reached(
-        self, pos: np.ndarray, tolerance: float, highlight: bool = False
-    ) -> bool:
+    def is_reached(self, tolerance: float) -> bool:
         """Check if target is reached."""
-        is_reached = self.distance(pos) <= tolerance
-        if highlight:
+        for side in self._config.target_hands:
+            if side not in self._robot.grippers:
+                continue
+            hand_pos = self._robot.get_hand_pos(side)
+            is_reached = self.distance(hand_pos) <= tolerance
             self.set_highlight(is_reached)
-        return is_reached
+            if is_reached:
+                return True
+        return False
 
     def set_highlight(self, highlight: bool):
         """Toggle target highlight."""
@@ -68,8 +74,9 @@ class _ReachTargetEnv(BiGymEnv, ABC):
 
     TARGET_CONFIGS = [
         TargetConfig(
+            target_hands=[HandSide.LEFT, HandSide.RIGHT],
             reset_position=np.array([0.5, 0, 1]),
-            color_default=np.array([1, 0, 0, 1]),
+            color_default=np.array([0.3, 0, 0, 1]),
             color_highlight=np.array([1, 0, 0, 1]),
         )
     ]
@@ -80,12 +87,19 @@ class _ReachTargetEnv(BiGymEnv, ABC):
     def _initialize_env(self):
         self.targets: list[Target] = []
         for config in self.TARGET_CONFIGS:
-            self.targets.append(Target(self._mojo, config))
+            self.targets.append(Target(self._mojo, self.robot, config))
 
     def _on_reset(self):
         for target in self.targets:
             offset = np.random.uniform(-self.POSITION_BOUNDS, self.POSITION_BOUNDS)
             target.reset_position(offset)
+            target.set_highlight(False)
+
+    def _success(self) -> bool:
+        for target in self.targets:
+            if not target.is_reached(self.TOLERANCE):
+                return False
+        return True
 
 
 class ReachTarget(_ReachTargetEnv):
@@ -105,28 +119,18 @@ class ReachTarget(_ReachTargetEnv):
             ).copy()
         }
 
-    def _success(self) -> bool:
-        for side in self.robot.grippers:
-            if self.targets[0].is_reached(
-                self._robot.get_hand_pos(side),
-                self.TOLERANCE,
-            ):
-                return True
-        return False
-
 
 class ReachTargetSingle(ReachTarget):
     """Reach the target with specific wrist."""
 
-    SIDE = HandSide.LEFT
-
-    def _initialize_env(self):
-        super()._initialize_env()
-
-    def _success(self) -> bool:
-        return self.targets[0].is_reached(
-            self._robot.get_hand_pos(self.SIDE), self.TOLERANCE
+    TARGET_CONFIGS = [
+        TargetConfig(
+            target_hands=[HandSide.LEFT],
+            reset_position=np.array([0.5, 0, 1]),
+            color_default=np.array([0.3, 0, 0, 1]),
+            color_highlight=np.array([1, 0, 0, 1]),
         )
+    ]
 
 
 class ReachTargetDual(_ReachTargetEnv):
@@ -134,11 +138,13 @@ class ReachTargetDual(_ReachTargetEnv):
 
     TARGET_CONFIGS = [
         TargetConfig(
+            target_hands=[HandSide.LEFT],
             reset_position=np.array([0.5, 0.2, 1]),
             color_default=np.array([0.3, 0, 0, 1]),
             color_highlight=np.array([1, 0, 0, 1]),
         ),
         TargetConfig(
+            target_hands=[HandSide.RIGHT],
             reset_position=np.array([0.5, -0.2, 1]),
             color_default=np.array([0, 0.3, 0, 1]),
             color_highlight=np.array([0, 1, 0, 1]),
@@ -164,22 +170,3 @@ class ReachTargetDual(_ReachTargetEnv):
                 self.targets[1].body.get_position(), np.float32
             ).copy(),
         }
-
-    def _success(self) -> bool:
-        if not self.targets[0].is_reached(
-            self._robot.get_hand_pos(HandSide.LEFT), self.TOLERANCE
-        ):
-            return False
-        if not self.targets[1].is_reached(
-            self._robot.get_hand_pos(HandSide.RIGHT), self.TOLERANCE
-        ):
-            return False
-        return True
-
-    def _on_step(self):
-        self.targets[0].is_reached(
-            self._robot.get_hand_pos(HandSide.LEFT), self.TOLERANCE, True
-        )
-        self.targets[1].is_reached(
-            self._robot.get_hand_pos(HandSide.RIGHT), self.TOLERANCE, True
-        )

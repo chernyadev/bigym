@@ -481,7 +481,7 @@ class DemoPlayerWindow(BaseWindow):
     ) -> Optional[list[Demo]]:
         if not directory:
             return None
-        demo_store = DemoStore.google_cloud()
+        demo_store = DemoStore()
         metadata = Metadata.from_env(env)
         metadata.observation_mode = ObservationMode.Lightweight
         demos = demo_store.get_demos(metadata, amount=-1, only_successful=False)
@@ -512,8 +512,8 @@ class DemoPlayerWindow(BaseWindow):
         for demo_file in get_demos_in_dir(directory):
             demo = Demo.from_safetensors(demo_file)
             demos.append(LightweightDemo.from_demo(demo))
-        demo_store = DemoStore.google_cloud()
-        demo_store.upload_demos(demos)
+        demo_store = DemoStore()
+        demo_store.add_demos(demos)
         return demos
 
     def _create_env(

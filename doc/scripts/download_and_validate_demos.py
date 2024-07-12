@@ -28,7 +28,7 @@ ACTION_MODES = [
 ENVIRONMENTS_TO_SKIP = {ReachTarget, ReachTargetDual, ReachTargetSingle}
 
 output_directory = Path(__file__).resolve().parent / "validation"
-demo_store = DemoStore.google_cloud()
+demo_store = DemoStore()
 
 
 def validate_all_demos(env_cls: Type[BiGymEnv]):

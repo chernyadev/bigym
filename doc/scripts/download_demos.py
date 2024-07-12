@@ -17,7 +17,7 @@ action_modes = [
     ),
     JointPositionActionMode(absolute=True, floating_base=True),
 ]
-demo_store = DemoStore.google_cloud()
+demo_store = DemoStore()
 
 for env_cls in ENVIRONMENTS.values():
     for action_mode in action_modes:

@@ -1,7 +1,7 @@
 """Test demonstration storing system."""
+import tempfile
+
 import pytest
-from cloudpathlib import implementation_registry
-from cloudpathlib.local import LocalGSClient, local_gs_implementation
 from pathlib import Path
 from typing import Optional
 
@@ -38,14 +38,12 @@ PIXEL_CONFIG = ObservationConfig(
 )
 
 
-@pytest.fixture
-def mock_gs_bucket(monkeypatch):
-    monkeypatch.setitem(implementation_registry, "gs", local_gs_implementation)
-    yield
-    # Clean up the local storage directory
-    demo_store = DemoStore.google_cloud()
-    demo_store._path.rmtree()
-    LocalGSClient.reset_default_storage_dir()
+@pytest.fixture()
+def temp_demo_store():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        demo_store = DemoStore(Path(temp_dir))
+        demo_store.cached = True
+        yield demo_store
 
 
 class TestDemoStore:
@@ -73,7 +71,7 @@ class TestDemoStore:
         action_modes: list[type[ActionMode]] = ACTION_MODES,
         obs_modes: list[ObservationMode] = list(ObservationMode),
         num_demos_per_env: int = NUM_DEMOS_PER_ENV,
-    ) -> list[Demo]:
+    ) -> dict[int, Demo]:
         demos = {}
         recorder = DemoRecorder()
         seed = 0
@@ -102,23 +100,20 @@ class TestDemoStore:
             seed += 1
         return demos
 
-    def test_upload_and_download_of_a_demo(self, mock_gs_bucket):
+    def test_upload_and_download_of_a_demo(self, temp_demo_store):
         recorder = DemoRecorder()
-        env: BiGymEnv = ReachTarget(action_mode=JointPositionActionMode())
-        TestDemoStore.record_demo(env, recorder, seed=42)
+        env = ReachTarget(action_mode=JointPositionActionMode())
+        self.record_demo(env, recorder, seed=42)
         demo_to_store = recorder.demo
-
-        metadata = Metadata.from_env(env)
-
-        demo_store = DemoStore.google_cloud()
-        demo_store.upload_demo(demo_to_store)
-        demos_from_store = demo_store.get_demos(metadata)
+        temp_demo_store.add_demo(demo_to_store)
+        demos_from_store = temp_demo_store.get_demos(Metadata.from_env(env))
         assert len(demos_from_store) == 1
         demo_from_store = demos_from_store[0]
         assert_timesteps_equal(demo_to_store, demo_from_store)
 
     @staticmethod
     def _test_upload_and_download_multiple_demos(
+        demo_store: DemoStore,
         env_classes: list[type[BiGymEnv]] = ENV_CLASSES,
         action_modes: list[type[ActionMode]] = ACTION_MODES,
         obs_modes: list[ObservationMode] = list(ObservationMode),
@@ -130,9 +125,7 @@ class TestDemoStore:
             obs_modes=obs_modes,
             num_demos_per_env=num_demos_per_env,
         )
-
-        demo_store = DemoStore.google_cloud()
-        demo_store.upload_demos(list(demos_to_store.values()))
+        demo_store.add_demos(list(demos_to_store.values()))
 
         for env_class in env_classes:
             for action_mode in action_modes:
@@ -164,16 +157,18 @@ class TestDemoStore:
                             demo_to_store = LightweightDemo.from_demo(demo_to_store)
                         assert_timesteps_equal(demo_from_store, demo_to_store)
 
-    def test_upload_and_download_of_demos(self, mock_gs_bucket):
+    def test_upload_and_download_of_demos(self, temp_demo_store):
         self._test_upload_and_download_multiple_demos(
+            temp_demo_store,
             env_classes=[ReachTarget],
             action_modes=[JointPositionActionMode],
             obs_modes=[ObservationMode.Lightweight],
             num_demos_per_env=2,
         )
 
-    def test_upload_and_download_of_demos_with_multiple_envs(self, mock_gs_bucket):
+    def test_upload_and_download_of_demos_with_multiple_envs(self, temp_demo_store):
         self._test_upload_and_download_multiple_demos(
+            temp_demo_store,
             env_classes=ENV_CLASSES,
             action_modes=[JointPositionActionMode],
             obs_modes=[ObservationMode.Lightweight],
@@ -181,28 +176,31 @@ class TestDemoStore:
         )
 
     def test_upload_and_download_of_demos_with_multiple_action_modes(
-        self, mock_gs_bucket
+        self, temp_demo_store
     ):
         self._test_upload_and_download_multiple_demos(
+            temp_demo_store,
             env_classes=[ReachTarget],
             action_modes=ACTION_MODES,
             obs_modes=[ObservationMode.Lightweight],
             num_demos_per_env=1,
         )
 
-    def test_upload_and_download_of_demos_with_multiple_obs_modes(self, mock_gs_bucket):
+    def test_upload_and_download_of_demos_with_multiple_obs_modes(
+        self, temp_demo_store
+    ):
         self._test_upload_and_download_multiple_demos(
+            temp_demo_store,
             env_classes=[ReachTarget],
             action_modes=[JointPositionActionMode],
             obs_modes=list(ObservationMode),
             num_demos_per_env=1,
         )
 
-    def test_correct_file_structure(self, mock_gs_bucket):
+    def test_correct_file_structure(self, temp_demo_store):
         # Load the demos from the test_data folder and upload them to the cloud
         path = Path(__file__).parent / "data/safetensors"
-        demo_store = DemoStore.google_cloud()
-        demo_store.upload_safetensors(list(path.rglob(f"*{SAFETENSORS_SUFFIX}")))
+        temp_demo_store.add_files(list(path.rglob(f"*{SAFETENSORS_SUFFIX}")))
 
         for env_class in ENV_CLASSES:
             for action_mode in ACTION_MODES:
@@ -221,11 +219,11 @@ class TestDemoStore:
                         if action_mode == TorqueActionMode
                         else False,
                     )
-                    paths = demo_store.list_demo_paths(metadata)
+                    paths = temp_demo_store.list_demo_paths(metadata)
                     assert len(paths) > 0
                     path = paths[0]
                     expected_path = (
-                        demo_store._path
+                        temp_demo_store._cache_path
                         / metadata.env_name
                         / metadata.environment_data.action_mode_description
                         / obs_mode.value
@@ -234,8 +232,8 @@ class TestDemoStore:
                         expected_path /= metadata.environment_data.camera_description
                     assert path.parent == expected_path
 
-    def test_get_demo_with_new_observations(self, mock_gs_bucket):
-        env: BiGymEnv = ReachTarget(
+    def test_get_demo_with_new_observations(self, temp_demo_store):
+        env = ReachTarget(
             action_mode=JointPositionActionMode(absolute=True),
             observation_config=ObservationConfig(
                 cameras=[
@@ -264,10 +262,9 @@ class TestDemoStore:
             assert timestep.observation == {}
             assert timestep.reward is None
 
-        demo_store = DemoStore.google_cloud()
-        demo_store.upload_demo(lightweight_demo)
-        demos_from_store = demo_store.get_demos(original_metadata)
-        assert demo_store.lightweight_demo_exists(lightweight_demo.metadata)
+        temp_demo_store.add_demo(lightweight_demo)
+        demos_from_store = temp_demo_store.get_demos(original_metadata)
+        assert temp_demo_store.lightweight_demo_exists(lightweight_demo.metadata)
         assert len(demos_from_store) == 1
         recreated_demo = demos_from_store[0]
 
@@ -282,8 +279,8 @@ class TestDemoStore:
 
         assert_timesteps_equal(heavy_demo, recreated_demo)
 
-    def test_retrieve_n_demos(self, mock_gs_bucket):
-        env: BiGymEnv = ReachTarget(
+    def test_retrieve_n_demos(self, temp_demo_store):
+        env = ReachTarget(
             action_mode=JointPositionActionMode(absolute=True),
             observation_config=ObservationConfig(
                 cameras=[
@@ -304,49 +301,44 @@ class TestDemoStore:
             recorder.stop()
             demos.append(recorder.demo)
 
-        demo_store = DemoStore.google_cloud()
-        demo_store.upload_demos(demos)
+        temp_demo_store.add_demos(demos)
 
         for i in range(0, 11, 2):
-            demos_from_store = demo_store.get_demos(metadata, amount=i)
+            demos_from_store = temp_demo_store.get_demos(metadata, amount=i)
             assert len(demos_from_store) == i
 
-    def test_implicit_saving_of_lightweight_demos(self, mock_gs_bucket):
-        demo_to_store = _generate_simple_demo()
-        demo_store = DemoStore.google_cloud()
-        demo_store.upload_demo(demo_to_store)
-        assert demo_store.lightweight_demo_exists(demo_to_store.metadata)
+    def test_implicit_saving_of_lightweight_demos(self, temp_demo_store):
+        demo = _generate_simple_demo()
+        temp_demo_store.add_demo(demo)
+        assert temp_demo_store.lightweight_demo_exists(demo.metadata)
 
-    def test_exception_thrown_if_demos_do_not_exist(self, mock_gs_bucket):
-        demo_store = DemoStore.google_cloud()
+    def test_exception_thrown_if_demos_do_not_exist(self, temp_demo_store):
         metadata = Metadata.from_env_cls(
             ReachTarget,
             JointPositionActionMode,
             obs_mode=ObservationMode.Lightweight,
         )
         with pytest.raises(DemoNotFoundError):
-            demo_store.get_demos(metadata)
+            temp_demo_store.get_demos(metadata)
 
-    def test_exception_thrown_if_lightweight_demos_do_not_exist(self, mock_gs_bucket):
-        demo_store = DemoStore.google_cloud()
+    def test_exception_thrown_if_lightweight_demos_do_not_exist(self, temp_demo_store):
         metadata = Metadata.from_env_cls(
             ReachTarget,
             JointPositionActionMode,
             obs_mode=ObservationMode.State,
         )
         with pytest.raises(DemoNotFoundError):
-            demo_store.get_demos(metadata)
+            temp_demo_store.get_demos(metadata)
 
-    def test_exception_thrown_if_too_many_demos_requested(self, mock_gs_bucket):
-        demo_to_store = _generate_simple_demo()
-        demo_store = DemoStore.google_cloud()
-        demo_store.upload_demo(demo_to_store)
+    def test_exception_thrown_if_too_many_demos_requested(self, temp_demo_store):
+        demo = _generate_simple_demo()
+        temp_demo_store.add_demo(demo)
         with pytest.raises(TooManyDemosRequestedError):
-            demo_store.get_demos(demo_to_store.metadata, amount=1000)
+            temp_demo_store.get_demos(demo.metadata, amount=1000)
 
 
 def _generate_simple_demo():
     recorder = DemoRecorder()
-    env: BiGymEnv = ReachTarget(action_mode=JointPositionActionMode())
+    env = ReachTarget(action_mode=JointPositionActionMode())
     TestDemoStore.record_demo(env, recorder, seed=42)
     return recorder.demo

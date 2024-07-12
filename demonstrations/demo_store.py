@@ -1,18 +1,23 @@
 """Script for uploading the collected demos."""
+import logging
+import os
 import warnings
+import zipfile
+from typing import Optional
 
 import numpy as np
 import tempfile
-from cloudpathlib import CloudPath
 from pathlib import Path
 from copy import deepcopy
 
+import wget
 from tqdm import tqdm
 
+import bigym
 from bigym.bigym_env import CONTROL_FREQUENCY_MAX
+from bigym.const import CACHE_PATH, RELEASES_PATH
 from demonstrations.utils import Metadata, ObservationMode
 from demonstrations.demo import Demo, LightweightDemo
-from demonstrations.const import SAFETENSORS_SUFFIX
 from demonstrations.demo_converter import DemoConverter
 
 
@@ -50,39 +55,31 @@ class TooManyDemosRequestedError(Exception):
 class DemoStore:
     """Class to help storing and retrieving demos from a database."""
 
-    def __init__(self, path: CloudPath):
-        """Init.
+    _DEMOS = "demonstrations"
+    _VERSION = bigym.__version__
+    _LOCK = ".lock"
 
-        :param path: The path to the store.
-        """
-        self._path = path
+    def __init__(self, cache_root: Optional[Path] = None):
+        """Init."""
+        self._cache_root = cache_root or CACHE_PATH
+        self._cache_path: Path = self._cache_root / self._VERSION / self._DEMOS
+        self._cache_path.mkdir(parents=True, exist_ok=True)
 
-    @classmethod
-    def google_cloud(cls, bucket_path: str = "rll_data/bigym"):
-        """For accessing a google cloud bucket.
-
-        :param bucket_path: Path to the bucket.
-        """
-        return cls(CloudPath(f"gs://{bucket_path}"))
-
-    def upload_safetensors(self, file_paths: list[Path]):
-        """Upload the safetensors to the store.
+    def add_files(self, file_paths: list[Path]):
+        """Add the safetensors to the store.
 
         :param file_paths: List of paths to the safetensors.
         """
         for file_path in file_paths:
-            self._upload_safetensor(file_path)
+            self._add_file(file_path)
 
-    def _upload_safetensor(self, file_path: Path):
-        """Upload the safetensor to the store.
+    def _add_file(self, demo_path: Path):
+        new_demo_path = self._create_path(Metadata.from_safetensors(demo_path))
+        new_demo_path.parent.mkdir(parents=True, exist_ok=True)
+        new_demo_path.write_bytes(demo_path.read_bytes())
 
-        :param file_path: Path to the safetensor.
-        """
-        new_file = self._create_path(Metadata.from_safetensors(file_path))
-        new_file.upload_from(file_path)
-
-    def upload_demos(self, demos: list[Demo]):
-        """Upload demos to the store.
+    def add_demos(self, demos: list[Demo]):
+        """Add demos to the store.
 
         :param demos: List of demos to upload.
         """
@@ -96,34 +93,28 @@ class DemoStore:
                 position=0,
             ) as pbar:
                 for demo in demos:
-                    self._upload_demo(demo, temp_dir)
+                    self._add_demo(demo, temp_dir)
                     pbar.update()
 
-    def upload_demo(self, demo: Demo):
-        """Upload a demo to the store.
+    def add_demo(self, demo: Demo):
+        """Add a demo to the store.
 
         :param demo: The demo to upload.
         """
         with tempfile.TemporaryDirectory() as temp_dir:
-            self._upload_demo(demo, Path(temp_dir))
+            self._add_demo(demo, Path(temp_dir))
 
-    def _upload_demo(self, demo: Demo, local_dir: Path):
-        """Upload the demo to the store.
-
-        :param demo: The demo to upload.
-        :param local_dir: The local directory to store the demo before uploading.
-        """
+    def _add_demo(self, demo: Demo, local_dir: Path):
         if isinstance(local_dir, str):
             local_dir = Path(local_dir)
         if demo.metadata.observation_mode != ObservationMode.Lightweight:
             if not self.lightweight_demo_exists(demo.metadata):
                 lightweight_demo = LightweightDemo.from_demo(demo)
-                self._upload_demo(lightweight_demo, local_dir)
+                self._add_demo(lightweight_demo, local_dir)
         if self.demo_exists(demo.metadata):
             return
-        new_file = self._create_path(demo.metadata)
         file_path = demo.save(local_dir / demo.metadata.filename)
-        new_file.upload_from(file_path)
+        self._add_file(file_path)
 
     def get_demos(
         self,
@@ -147,17 +138,16 @@ class DemoStore:
         if amount == 0:
             return demos
         remote_dir = self._create_path(metadata).parent
-        demos = self._download_demos(remote_dir, amount)
+        demos = self._get_demos(remote_dir, amount)
         # If requested demos do not exist, try to get the lightweight demos
         if not demos and metadata.observation_mode != ObservationMode.Lightweight:
             light_metadata = deepcopy(metadata)
             light_metadata.observation_mode = ObservationMode.Lightweight
             remote_dir = self._create_path(light_metadata).parent
-            demos = self._download_demos(remote_dir, amount)
+            demos = self._get_demos(remote_dir, amount)
         # Raising exception if there are no demos at this stage
         if not demos:
             raise DemoNotFoundError(metadata)
-
         # Process downloaded demos
         processed_demos = []
         with tqdm(
@@ -188,51 +178,60 @@ class DemoStore:
                 pbar.update()
         return processed_demos
 
-    @staticmethod
-    def _download_demos(remote_dir: CloudPath, amount: int) -> list[Demo]:
-        demos = []
-        if not remote_dir.exists():
-            return demos
-        with tempfile.TemporaryDirectory() as temp_dir:
-            remote_dir.download_to(temp_dir)
-            local_dir = Path(temp_dir)
-            files = [file for file in remote_dir.iterdir()]
+    def _get_demos(self, demos_directory: Path, amount: int) -> list[Demo]:
+        self._cache_demos()
+        if not demos_directory.exists():
+            return []
+        files = [file for file in demos_directory.iterdir()]
+        if amount > len(files):
+            raise TooManyDemosRequestedError(amount, len(files))
+        elif amount > 0:
+            np.random.shuffle(files)
+            files = files[:amount]
+        return [Demo.from_safetensors(file) for file in files]
 
-            # If the amount is -1, return all demos
-            if amount > len(files):
-                raise TooManyDemosRequestedError(amount, len(files))
-            elif amount > 0:
-                # If the amount is > 0 and < len(files), shuffle the files
-                np.random.shuffle(files)
-                files = files[:amount]
+    def _cache_demos(self):
+        if self.cached:
+            logging.info(f"Using cached demonstrations from: {self._cache_path}")
+            return
+        url = f"{RELEASES_PATH}/v{self._VERSION}/{self._DEMOS}.zip"
+        logging.info(
+            f"Demonstrations for v{self._VERSION} not found. "
+            f"Downloading from: {url}"
+        )
+        local_filename = wget.download(url)
+        if not zipfile.is_zipfile(local_filename):
+            raise RuntimeError(f"Invalid demonstrations file: {local_filename}")
+        with zipfile.ZipFile(local_filename, "r") as zip_ref:
+            zip_ref.extractall(self._cache_path.parent)
+        os.remove(local_filename)
+        self.cached = True
 
-            # Download the demos
-            for file in files:
-                if file.suffix == SAFETENSORS_SUFFIX:
-                    demos.append(Demo.from_safetensors(local_dir / file))
-        return demos
+    @property
+    def cached(self):
+        """Return True if demos are cached locally, else False."""
+        lock_file = self._cache_path / self._LOCK
+        return lock_file.exists()
 
-    def list_demo_paths(self, metadata: Metadata) -> list[CloudPath]:
-        """List the demos matching the metadata.
+    @cached.setter
+    def cached(self, value: bool):
+        """Set local cache status."""
+        lock_file = self._cache_path / self._LOCK
+        if value:
+            lock_file.touch(exist_ok=True)
+        elif lock_file.exists():
+            os.remove(lock_file)
 
-        :param metadata: The metadata to match the demos.
-
-        :return: The paths to the demos matching the metadata.
-        """
-        remote_dir = self._create_path(metadata).parent
-        if not remote_dir.exists():
+    def list_demo_paths(self, metadata: Metadata) -> list[Path]:
+        """List the demos matching the metadata."""
+        demo_dir = self._create_path(metadata).parent
+        if not demo_dir.exists():
             warnings.warn(f"No demos found for {metadata}.")
             return []
-        return [p for p in remote_dir.iterdir()]
+        return [p for p in demo_dir.iterdir()]
 
-    def _create_path(self, metadata: Metadata) -> CloudPath:
-        """Create a path for the demo.
-
-        :param metadata: The metadata for the demo.
-
-        :return: The path to the demo.
-        """
-        path = self._path
+    def _create_path(self, metadata: Metadata) -> Path:
+        path = self._cache_path
         if metadata.env_cls.DEFAULT_ROBOT != metadata.robot_cls:
             path /= metadata.environment_data.robot_name
         path = (

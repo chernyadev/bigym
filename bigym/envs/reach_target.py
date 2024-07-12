@@ -1,6 +1,6 @@
 """Set of reach target tasks."""
 from abc import ABC
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 from gymnasium import spaces
@@ -16,10 +16,10 @@ from bigym.const import HandSide
 class TargetConfig:
     """Target Config."""
 
-    reset_position: np.ndarray = np.zeros(3)
-    size: np.ndarray = np.array([0.05, 0.05, 0.05])
-    color_default: np.ndarray = np.array([1, 0, 0, 1])
-    color_highlight: np.ndarray = np.array([1, 0, 0, 1])
+    reset_position: np.ndarray = field(default_factory=lambda: np.zeros(3))
+    size: np.ndarray = field(default_factory=lambda: np.array([0.05, 0.05, 0.05]))
+    color_default: np.ndarray = field(default_factory=lambda: np.array([1, 0, 0, 1]))
+    color_highlight: np.ndarray = field(default_factory=lambda: np.array([1, 0, 0, 1]))
 
 
 class Target:

@@ -1,6 +1,5 @@
 """Robot configs."""
 
-import dataclasses
 from pathlib import Path
 from typing import Optional, Type
 
@@ -11,9 +10,10 @@ from bigym.const import HandSide
 from bigym.robots.animated_legs import AnimatedLegs
 
 from bigym.utils.dof import Dof
+from dataclasses import dataclass, field
 
 
-@dataclasses.dataclass
+@dataclass
 class GripperConfig:
     """Configuration for a gripper embedded into robot model.
 
@@ -30,7 +30,7 @@ class GripperConfig:
     range: np.ndarray
     body: Optional[str] = None
     model: Optional[Path] = None
-    pad_bodies: list[str] = dataclasses.field(default_factory=list)
+    pad_bodies: list[str] = field(default_factory=list)
     pinch_site: Optional[str] = None
     discrete: bool = True
 
@@ -40,7 +40,7 @@ class GripperConfig:
             raise ValueError("Either 'body' or 'model' must be specified.")
 
 
-@dataclasses.dataclass
+@dataclass
 class ArmConfig:
     """Configuration for a robot arm.
 
@@ -55,22 +55,22 @@ class ArmConfig:
     site: str
     links: list[str]
     writs_dof: Optional[Dof] = None
-    offset_position: np.ndarray = np.zeros(3)
-    offset_euler: np.ndarray = np.zeros(3)
+    offset_position: np.ndarray = field(default_factory=lambda: np.zeros(3))
+    offset_euler: np.ndarray = field(default_factory=lambda: np.zeros(3))
 
 
-@dataclasses.dataclass
+@dataclass
 class FloatingBaseConfig:
     """Configuration for a floating base."""
 
     dofs: dict[PelvisDof, Dof]
     delta_range_position: tuple[float, float]
     delta_range_rotation: tuple[float, float]
-    offset_position: np.ndarray = np.zeros(3)
+    offset_position: np.ndarray = field(default_factory=lambda: np.zeros(3))
     animated_legs_class: Optional[Type[AnimatedLegs]] = None
 
 
-@dataclasses.dataclass
+@dataclass
 class RobotConfig:
     """Configuration for a robot.
 
@@ -96,5 +96,5 @@ class RobotConfig:
     gripper: GripperConfig
     arms: dict[HandSide, ArmConfig]
     actuators: dict[str, bool]
-    cameras: list[str] = dataclasses.field(default_factory=list)
-    namespaces_to_remove: list[str] = dataclasses.field(default_factory=list)
+    cameras: list[str] = field(default_factory=list)
+    namespaces_to_remove: list[str] = field(default_factory=list)

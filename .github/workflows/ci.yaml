@@ -1,4 +1,4 @@
-name: Run Tests
+name: CI
 
 on:
   push:
@@ -20,12 +20,23 @@ jobs:
       with:
         python-version: "3.11"
 
-    - name: Install dependencies, start Xvfb, and run tests
+    - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y xvfb libgl1-mesa-dev libosmesa6-dev
+        sudo apt-get install -y libxml2-utils xvfb libgl1-mesa-dev libgl1-mesa-glx libosmesa6-dev
         python -m pip install --upgrade pip
-        pip install .
+        pip install ".[dev]"
+        pip install pre-commit
+
+    - name: Start Xvfb
+      run: |
         Xvfb :99 -ac &
         echo "DISPLAY=:99" >> $GITHUB_ENV
-        DISPLAY=:99 pytest tests/
+
+#    - name: Run pre-commit checks
+#      run: pre-commit run --all-files
+
+    - name: Run tests
+      env:
+        DISPLAY: :99
+      run: pytest tests/

@@ -134,3 +134,8 @@ On each PR, please ensure to bump the:
 - **Patch** version for bug fixes.
 
 Please ensure that you pass pre-commits before opening a PR: `pre-commit run --all-files` and that you pass all tests: `pytest tests/ --run-slow`.
+
+## Licenses
+- [BiGym License (Apache 2.0)](LICENSE) - This repository
+- [Mujoco Menagerie (Apache 2.0)](https://github.com/google-deepmind/mujoco_menagerie/blob/main/LICENSE) - Models of robots and grippers
+- [3D Assets Attributions (CC0, CC BY 4.0, CC BY NC 4.0)](bigym/envs/xmls/3D_MODELS_ATTRIBUTION.md) - 3D Assets

@@ -44,8 +44,8 @@ This document provides the attribution details for the 3D models included in thi
   - [`bigym/envs/xmls/props/groceries/soap/assets`](https://github.com/chernyadev/bigym/tree/master/bigym/envs/xmls/props/groceries/soap/assets)
   - [`bigym/envs/xmls/props/groceries/wine/assets`](https://github.com/chernyadev/bigym/tree/master/bigym/envs/xmls/props/groceries/wine/assets)
 - **Author**: [Nicolai Kilstrup](https://sketchfab.com/nkilstrup)
-- **Source**: [thebasemesh.com](https://thebasemesh.com)
-- **License**: [CC0](https://creativecommons.org/publicdomain/zero/1.0/)
+- **Source**: [Sketchfab](https://skfb.ly/oFoUn)
+- **License**: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 
 ---
 

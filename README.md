@@ -14,6 +14,11 @@
 [**BiGym: A Demo-Driven Mobile Bi-Manual Manipulation Benchmark**](https://arxiv.org/abs/2407.07788)\
 [Nikita Cherniadev*](https://www.linkedin.com/in/nikita-cherniadev-8495417a/), [Nicholas Backshall*](https://www.linkedin.com/in/nicholas-backshall/?originalSubdomain=uk), [Xiao Ma*](https://yusufma03.github.io/), [Yunfan Lu](https://www.linkedin.com/in/yunfan-lu-90170992/?originalSubdomain=sg), [Younggyo Seo](https://younggyo.me/), [Stephen James](https://stepjam.github.io/)
 
+BiGym is a new benchmark and learning environment for mobile bi-manual demo-driven robotic manipulation.
+BiGym features 40 diverse tasks set in home environments, ranging from simple target reaching to complex kitchen cleaning. To capture the real-world performance accurately, we provide human-collected demonstrations for each task, reflecting the diverse modalities found in real-world robot trajectories. BiGym supports a variety of observations, including proprioceptive data and visual inputs such as RGB, and depth from 3 camera views.
+
+For latest updates, check our project page: [https://chernyadev.github.io/bigym/](https://chernyadev.github.io/bigym/)
+
 ## Table of Contents
 
 1. [Install](#install)
@@ -140,3 +145,14 @@ Please ensure that you pass pre-commits before opening a PR: `pre-commit run --a
 - [BiGym License (Apache 2.0)](LICENSE) - This repository
 - [Mujoco Menagerie (Apache 2.0)](https://github.com/google-deepmind/mujoco_menagerie/blob/main/LICENSE) - Models of robots and grippers
 - [3D Assets Attributions (CC0, CC BY 4.0, CC BY NC 4.0)](bigym/envs/xmls/3D_MODELS_ATTRIBUTION.md) - 3D Assets
+
+## Citation
+If you find our work helpful, please kindly cite us
+```bibtex
+@article{chernyadev2024bigym,
+  title={BiGym: A Demo-Driven Mobile Bi-Manual Manipulation Benchmark},
+  author={Chernyadev, Nikita and Backshall, Nicholas and Ma, Xiao and Lu, Yunfan and Seo, Younggyo and James, Stephen},
+  journal={arXiv preprint arXiv:2407.07788},
+  year={2024}
+}
+```

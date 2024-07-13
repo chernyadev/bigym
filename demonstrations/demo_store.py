@@ -199,7 +199,12 @@ class DemoStore:
             f"Demonstrations for v{self._VERSION} not found. "
             f"Downloading from: {url}"
         )
-        local_filename = wget.download(url)
+        try:
+            local_filename = wget.download(url)
+            logging.info(f"Demos downloaded successfully and saved as {local_filename}")
+        except Exception as e:
+            logging.error(f"An error occurred while downloading demos: {e}")
+            return
         if not zipfile.is_zipfile(local_filename):
             raise RuntimeError(f"Invalid demonstrations file: {local_filename}")
         with zipfile.ZipFile(local_filename, "r") as zip_ref:

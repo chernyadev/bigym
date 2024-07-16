@@ -65,19 +65,6 @@ class DemoStore:
         self._cache_path: Path = self._cache_root / self._VERSION / self._DEMOS
         self._cache_path.mkdir(parents=True, exist_ok=True)
 
-    def add_files(self, file_paths: list[Path]):
-        """Add the safetensors to the store.
-
-        :param file_paths: List of paths to the safetensors.
-        """
-        for file_path in file_paths:
-            self._add_file(file_path)
-
-    def _add_file(self, demo_path: Path):
-        new_demo_path = self._create_path(Metadata.from_safetensors(demo_path))
-        new_demo_path.parent.mkdir(parents=True, exist_ok=True)
-        new_demo_path.write_bytes(demo_path.read_bytes())
-
     def add_demos(self, demos: list[Demo]):
         """Add demos to the store.
 
@@ -115,6 +102,11 @@ class DemoStore:
             return
         file_path = demo.save(local_dir / demo.metadata.filename)
         self._add_file(file_path)
+
+    def _add_file(self, demo_path: Path):
+        new_demo_path = self._create_path(Metadata.from_safetensors(demo_path))
+        new_demo_path.parent.mkdir(parents=True, exist_ok=True)
+        new_demo_path.write_bytes(demo_path.read_bytes())
 
     def get_demos(
         self,

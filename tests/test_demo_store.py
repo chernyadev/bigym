@@ -200,7 +200,9 @@ class TestDemoStore:
     def test_correct_file_structure(self, temp_demo_store):
         # Load the demos from the test_data folder and upload them to the cloud
         path = Path(__file__).parent / "data/safetensors"
-        temp_demo_store.add_files(list(path.rglob(f"*{SAFETENSORS_SUFFIX}")))
+        demo_files = list(path.rglob(f"*{SAFETENSORS_SUFFIX}"))
+        for demo_file in demo_files:
+            temp_demo_store._add_file(demo_file)
 
         for env_class in ENV_CLASSES:
             for action_mode in ACTION_MODES:

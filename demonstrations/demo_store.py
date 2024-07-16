@@ -113,7 +113,6 @@ class DemoStore:
         metadata: Metadata,
         amount: int = -1,
         frequency: int = CONTROL_FREQUENCY_MAX,
-        only_successful: bool = False,
     ) -> list[Demo]:
         """Download the demos matching the metadata.
 
@@ -121,8 +120,6 @@ class DemoStore:
         :param amount: The amount of demos to get.
             If < 0, all demonstrations are returned.
         :param frequency: Demo control frequency.
-        :param only_successful: Return only successful demos.
-        :param always_decimate: Decimate demo even if frequency is same.
 
         :return: The demos matching the metadata.
         """
@@ -158,15 +155,9 @@ class DemoStore:
                     CONTROL_FREQUENCY_MAX,
                     robot=robot,
                 )
-                if (
-                    metadata.observation_mode != ObservationMode.Lightweight
-                    or only_successful
-                ):
+                if metadata.observation_mode != ObservationMode.Lightweight:
                     demo = DemoConverter.create_demo_in_new_env(demo, env)
-                if not only_successful:
-                    processed_demos.append(demo)
-                elif np.any([bool(timestep.reward) for timestep in demo.timesteps]):
-                    processed_demos.append(demo)
+                processed_demos.append(demo)
                 pbar.update()
         return processed_demos
 

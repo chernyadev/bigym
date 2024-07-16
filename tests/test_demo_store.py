@@ -105,7 +105,7 @@ class TestDemoStore:
         env = ReachTarget(action_mode=JointPositionActionMode())
         self.record_demo(env, recorder, seed=42)
         demo_to_store = recorder.demo
-        temp_demo_store.add_demo(demo_to_store)
+        temp_demo_store.cache_demo(demo_to_store)
         demos_from_store = temp_demo_store.get_demos(Metadata.from_env(env))
         assert len(demos_from_store) == 1
         demo_from_store = demos_from_store[0]
@@ -125,7 +125,8 @@ class TestDemoStore:
             obs_modes=obs_modes,
             num_demos_per_env=num_demos_per_env,
         )
-        demo_store.add_demos(list(demos_to_store.values()))
+        for demo in list(demos_to_store.values()):
+            demo_store.cache_demo(demo)
 
         for env_class in env_classes:
             for action_mode in action_modes:
@@ -202,7 +203,7 @@ class TestDemoStore:
         path = Path(__file__).parent / "data/safetensors"
         demo_files = list(path.rglob(f"*{SAFETENSORS_SUFFIX}"))
         for demo_file in demo_files:
-            temp_demo_store._add_file(demo_file)
+            temp_demo_store._cache_file(demo_file)
 
         for env_class in ENV_CLASSES:
             for action_mode in ACTION_MODES:
@@ -264,9 +265,9 @@ class TestDemoStore:
             assert timestep.observation == {}
             assert timestep.reward is None
 
-        temp_demo_store.add_demo(lightweight_demo)
+        temp_demo_store.cache_demo(lightweight_demo)
         demos_from_store = temp_demo_store.get_demos(original_metadata)
-        assert temp_demo_store.lightweight_demo_exists(lightweight_demo.metadata)
+        assert temp_demo_store.light_demo_exists(lightweight_demo.metadata)
         assert len(demos_from_store) == 1
         recreated_demo = demos_from_store[0]
 
@@ -303,7 +304,8 @@ class TestDemoStore:
             recorder.stop()
             demos.append(recorder.demo)
 
-        temp_demo_store.add_demos(demos)
+        for demo in demos:
+            temp_demo_store.cache_demo(demo)
 
         for i in range(0, 11, 2):
             demos_from_store = temp_demo_store.get_demos(metadata, amount=i)
@@ -311,8 +313,8 @@ class TestDemoStore:
 
     def test_implicit_saving_of_lightweight_demos(self, temp_demo_store):
         demo = _generate_simple_demo()
-        temp_demo_store.add_demo(demo)
-        assert temp_demo_store.lightweight_demo_exists(demo.metadata)
+        temp_demo_store.cache_demo(demo)
+        assert temp_demo_store.light_demo_exists(demo.metadata)
 
     def test_exception_thrown_if_demos_do_not_exist(self, temp_demo_store):
         metadata = Metadata.from_env_cls(
@@ -334,7 +336,7 @@ class TestDemoStore:
 
     def test_exception_thrown_if_too_many_demos_requested(self, temp_demo_store):
         demo = _generate_simple_demo()
-        temp_demo_store.add_demo(demo)
+        temp_demo_store.cache_demo(demo)
         with pytest.raises(TooManyDemosRequestedError):
             temp_demo_store.get_demos(demo.metadata, amount=1000)
 

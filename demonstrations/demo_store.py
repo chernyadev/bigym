@@ -147,7 +147,7 @@ class DemoStore:
         return processed_demos
 
     def _get_demos(self, demos_directory: Path, amount: int) -> list[Demo]:
-        self._cache_demos()
+        self._download_demos()
         if not demos_directory.exists():
             return []
         files = [file for file in demos_directory.iterdir()]
@@ -158,15 +158,12 @@ class DemoStore:
             files = files[:amount]
         return [Demo.from_safetensors(file) for file in files]
 
-    def _cache_demos(self):
+    def _download_demos(self):
         if self.cached:
             logging.info(f"Using cached demonstrations from: {self._cache_path}")
             return
         url = f"{RELEASES_PATH}/v{self._VERSION}/{self._DEMOS}.zip"
-        logging.info(
-            f"Demonstrations for v{self._VERSION} not found. "
-            f"Downloading from: {url}"
-        )
+        logging.info(f"Cached demonstrations not found. Downloading from: {url}")
         try:
             local_filename = wget.download(url)
             logging.info(f"Demos downloaded successfully and saved as {local_filename}")

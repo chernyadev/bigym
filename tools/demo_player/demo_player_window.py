@@ -14,7 +14,7 @@ from dearpygui import dearpygui as dpg
 from bigym.action_modes import JointPositionActionMode, PelvisDof, DEFAULT_DOFS
 from bigym.bigym_env import BiGymEnv, CONTROL_FREQUENCY_MAX, CONTROL_FREQUENCY_MIN
 from bigym.robots.robot import Robot
-from demonstrations.demo import Demo, DemoStep, LightweightDemo
+from demonstrations.demo import Demo, DemoStep
 from demonstrations.demo_player import DemoPlayer
 from demonstrations.demo_store import DemoNotFoundError, DemoStore
 from demonstrations.utils import Metadata, ObservationMode
@@ -202,15 +202,12 @@ class DemoPlayerWindow(BaseWindow):
     def _setup_ui(self):
         with dpg.group(horizontal=True):
             dpg.add_button(
-                label="Select Directory", callback=self._select_directory_callback
+                label="Change Directory...", callback=self._select_directory_callback
             )
-            dpg.add_button(label="Convert", callback=self._convert_demos_callback)
+            dpg.add_button(label="Convert...", callback=self._convert_demos_callback)
             dpg.add_button(label="Validate", callback=self._validate_demos_callback)
-            dpg.add_button(label="Download", callback=self._download_demos_callback)
-            dpg.add_button(label="Upload", callback=self._upload_demos_callback)
-            dpg.add_button(
-                label="Delete Selected", callback=self._try_delete_demo_callback
-            )
+            dpg.add_button(label="Cache", callback=self._cache_demos_callback)
+            dpg.add_button(label="Delete Selected", callback=self._try_delete_demo)
         dpg.add_spacer()
         with dpg.group(horizontal=True):
             self._table = DemosTable()
@@ -346,7 +343,7 @@ class DemoPlayerWindow(BaseWindow):
             return
         self._start_demo_replay(demo)
 
-    def _try_delete_demo_callback(self):
+    def _try_delete_demo(self):
         demos = self._table.get_selected_demos()
         if not demos:
             return
@@ -373,9 +370,11 @@ class DemoPlayerWindow(BaseWindow):
         self._converter_window.show(self._current_dir)
 
     def _validate_demos_callback(self):
+        demo_files = get_demos_in_dir(self._current_dir)
+        if not demo_files:
+            return
         results_queue = multiprocessing.Queue()
         popup = self._show_popup("Validate Demos", "Validating...")
-        demo_files = get_demos_in_dir(self._current_dir)
         demo_batches: list[np.ndarray[Path]] = np.array_split(
             np.array(demo_files), self.VALIDATION_THREADS
         )
@@ -452,68 +451,35 @@ class DemoPlayerWindow(BaseWindow):
             overlay += f" ({note})"
         dpg.configure_item(progress, overlay=overlay)
 
-    def _download_demos_callback(self):
-        popup = self._show_popup(
-            "Download Demos", "Downloading...", loading_indicator=True
-        )
+    def _cache_demos_callback(self):
+        popup = self._show_popup("Cache Demos", "Caching...", loading_indicator=True)
         try:
-            demos = self._download_demos(self._current_dir, self._create_env())
+            demos = self._get_demos(self._current_dir, self._create_env())
             dpg.delete_item(popup)
             dpg.split_frame()
             if demos:
                 count = len(demos)
                 self._update_files_list()
                 self._show_popup(
-                    "Download Demos",
-                    f"Downloaded {count} demonstration{'' if count == 1 else 's'}.",
+                    "Cache Demos",
+                    f"Cached {count} demonstration{'' if count == 1 else 's'}.",
                     actions={"OK": None},
                 )
         except DemoNotFoundError:
             dpg.delete_item(popup)
             dpg.split_frame()
             self._show_popup(
-                "Download Demos", "No demonstrations found.", actions={"OK": None}
+                "Cache Demos", "No demonstrations found.", actions={"OK": None}
             )
 
     @staticmethod
-    def _download_demos(
-        directory: Optional[Path], env: BiGymEnv
-    ) -> Optional[list[Demo]]:
+    def _get_demos(directory: Optional[Path], env: BiGymEnv) -> Optional[list[Demo]]:
         if not directory:
             return None
         demo_store = DemoStore()
         metadata = Metadata.from_env(env)
         metadata.observation_mode = ObservationMode.Lightweight
-        demos = demo_store.get_demos(metadata, amount=-1, only_successful=False)
-        for demo in demos:
-            demo.save(directory / demo.metadata.filename)
-        return demos
-
-    def _upload_demos_callback(self):
-        popup = self._show_popup(
-            "Upload Demos", "Uploading demonstrations...", loading_indicator=True
-        )
-        demos = self._upload_demos(self._current_dir)
-        dpg.delete_item(popup)
-        dpg.split_frame()
-        if demos:
-            count = len(demos)
-            self._show_popup(
-                "Upload Demos",
-                f"Uploaded {count} demonstration{'s' if count > 0 else ''}.",
-                actions={"OK": None},
-            )
-
-    @staticmethod
-    def _upload_demos(directory: Optional[Path]) -> Optional[list[Demo]]:
-        if directory is None:
-            return None
-        demos = []
-        for demo_file in get_demos_in_dir(directory):
-            demo = Demo.from_safetensors(demo_file)
-            demos.append(LightweightDemo.from_demo(demo))
-        demo_store = DemoStore()
-        demo_store.add_demos(demos)
+        demos = demo_store.get_demos(metadata, amount=-1)
         return demos
 
     def _create_env(

@@ -13,9 +13,8 @@ from copy import deepcopy
 import wget
 from tqdm import tqdm
 
-import bigym
 from bigym.bigym_env import CONTROL_FREQUENCY_MAX
-from bigym.const import CACHE_PATH, RELEASES_PATH
+from bigym.const import CACHE_PATH, DEMO_RELEASES, DEMO_VERSION
 from demonstrations.const import SAFETENSORS_SUFFIX
 from demonstrations.utils import Metadata, ObservationMode
 from demonstrations.demo import Demo, LightweightDemo
@@ -57,13 +56,12 @@ class DemoStore:
     """Class to help storing and retrieving demos from a database."""
 
     _DEMOS = "demonstrations"
-    _VERSION = bigym.__version__
     _LOCK = ".lock"
 
     def __init__(self, cache_root: Optional[Path] = None):
         """Init."""
         self._cache_root = cache_root or CACHE_PATH
-        self._cache_path: Path = self._cache_root / self._VERSION / self._DEMOS
+        self._cache_path: Path = self._cache_root / self._DEMOS / DEMO_VERSION
         self._cache_path.mkdir(parents=True, exist_ok=True)
 
     def cache_demo(self, demo: Demo, frequency: Optional[int] = None):
@@ -74,12 +72,9 @@ class DemoStore:
         """
         if demo.metadata.observation_mode != ObservationMode.Lightweight:
             if not self.light_demo_exists(demo.metadata, frequency):
-                print(f"caching light demo @ {frequency} hz")
                 self.cache_demo(LightweightDemo.from_demo(demo), frequency)
         if self.demo_exists(demo.metadata, frequency):
-            print(f"demo exists @ {frequency} hz, {demo.metadata.observation_mode}")
             return
-        print(f"caching demo @ {frequency} hz, {demo.metadata.observation_mode}")
         with tempfile.TemporaryDirectory() as temp_dir:
             file_path = demo.save(Path(temp_dir) / demo.metadata.filename)
             self._cache_demo_file(file_path, frequency)
@@ -165,7 +160,7 @@ class DemoStore:
         if self.cached:
             logging.info(f"Demos are cached already: {self._cache_path}")
             return
-        url = f"{RELEASES_PATH}/v{self._VERSION}/{self._DEMOS}.zip"
+        url = f"{DEMO_RELEASES}/v{DEMO_VERSION}/{self._DEMOS}.zip"
         logging.info(f"Cached demos not found. Downloading from: {url}")
         try:
             local_filename = wget.download(url)
@@ -176,7 +171,7 @@ class DemoStore:
         if not zipfile.is_zipfile(local_filename):
             raise RuntimeError(f"Invalid demos file: {local_filename}")
         with zipfile.ZipFile(local_filename, "r") as zip_ref:
-            zip_ref.extractall(self._cache_path.parent)
+            zip_ref.extractall(self._cache_path)
         os.remove(local_filename)
         self.cached = True
 

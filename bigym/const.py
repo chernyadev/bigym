@@ -10,7 +10,9 @@ PACKAGE_PATH = Path(__file__).parent
 ASSETS_PATH = PACKAGE_PATH / "envs" / "xmls"
 PRESETS_PATH = PACKAGE_PATH / "envs" / "presets"
 CACHE_PATH = Path.home() / ".bigym"
-RELEASES_PATH = "https://github.com/chernyadev/bigym/releases/download"
+
+DEMO_RELEASES = "https://github.com/chernyadev/bigym_data/releases/download"
+DEMO_VERSION = "0.9.0"
 
 WORLD_MODEL = ASSETS_PATH / "world.xml"
 

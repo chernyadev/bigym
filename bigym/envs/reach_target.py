@@ -101,6 +101,10 @@ class _ReachTargetEnv(BiGymEnv, ABC):
                 return False
         return True
 
+    def _on_step(self):
+        """Highlight spheres even in fast mode."""
+        self._success()
+
 
 class ReachTarget(_ReachTargetEnv):
     """Reach the target with either left or right wrist."""

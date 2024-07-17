@@ -15,19 +15,19 @@ class DemoPlayer:
     def replay(
         demo: Demo,
         control_frequency: int,
-        original_frequency: int = CONTROL_FREQUENCY_MAX,
+        demo_frequency: int = CONTROL_FREQUENCY_MAX,
         render_mode: Optional[str] = None,
     ):
         """Replay demonstration in original environment."""
         env = demo.metadata.get_env(control_frequency, render_mode=render_mode)
-        DemoPlayer.replay_in_env(demo, env, original_frequency)
+        DemoPlayer.replay_in_env(demo, env, demo_frequency)
 
     @staticmethod
     def replay_in_env(
-        demo: Demo, env: BiGymEnv, original_frequency: int = CONTROL_FREQUENCY_MAX
+        demo: Demo, env: BiGymEnv, demo_frequency: int = CONTROL_FREQUENCY_MAX
     ):
         """Replay demonstration in environment."""
-        timesteps = DemoPlayer._get_timesteps_for_replay(demo, env, original_frequency)
+        timesteps = DemoPlayer._get_timesteps_for_replay(demo, env, demo_frequency)
         env.reset(seed=demo.seed)
         for step in timesteps:
             action = step.executed_action
@@ -40,18 +40,18 @@ class DemoPlayer:
     def validate(
         demo: Demo,
         control_frequency: int,
-        original_frequency: int = CONTROL_FREQUENCY_MAX,
+        demo_frequency: int = CONTROL_FREQUENCY_MAX,
     ) -> bool:
         """Replay demonstration in original environment."""
         env = demo.metadata.get_env(control_frequency)
-        return DemoPlayer.validate_in_env(demo, env, original_frequency)
+        return DemoPlayer.validate_in_env(demo, env, demo_frequency)
 
     @staticmethod
     def validate_in_env(
-        demo: Demo, env: BiGymEnv, original_frequency: int = CONTROL_FREQUENCY_MAX
+        demo: Demo, env: BiGymEnv, demo_frequency: int = CONTROL_FREQUENCY_MAX
     ) -> bool:
         """Check if demonstration is successful in environment."""
-        timesteps = DemoPlayer._get_timesteps_for_replay(demo, env, original_frequency)
+        timesteps = DemoPlayer._get_timesteps_for_replay(demo, env, demo_frequency)
         env.reset(seed=demo.seed)
         is_successful = False
         for step in timesteps:
@@ -65,13 +65,13 @@ class DemoPlayer:
 
     @staticmethod
     def _get_timesteps_for_replay(
-        demo: Demo, env: BiGymEnv, original_frequency: int = CONTROL_FREQUENCY_MAX
+        demo: Demo, env: BiGymEnv, demo_frequency: int = CONTROL_FREQUENCY_MAX
     ) -> list[DemoStep]:
-        if env.control_frequency != original_frequency:
+        if env.control_frequency != demo_frequency:
             timesteps = DemoConverter.decimate(
                 demo,
                 target_freq=env.control_frequency,
-                original_freq=original_frequency,
+                original_freq=demo_frequency,
                 robot=env.robot,
             ).timesteps
         else:

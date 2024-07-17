@@ -16,6 +16,7 @@ from tqdm import tqdm
 import bigym
 from bigym.bigym_env import CONTROL_FREQUENCY_MAX
 from bigym.const import CACHE_PATH, RELEASES_PATH
+from demonstrations.const import SAFETENSORS_SUFFIX
 from demonstrations.utils import Metadata, ObservationMode
 from demonstrations.demo import Demo, LightweightDemo
 from demonstrations.demo_converter import DemoConverter
@@ -73,14 +74,17 @@ class DemoStore:
         """
         if demo.metadata.observation_mode != ObservationMode.Lightweight:
             if not self.light_demo_exists(demo.metadata, frequency):
+                print(f"caching light demo @ {frequency} hz")
                 self.cache_demo(LightweightDemo.from_demo(demo), frequency)
         if self.demo_exists(demo.metadata, frequency):
+            print(f"demo exists @ {frequency} hz, {demo.metadata.observation_mode}")
             return
+        print(f"caching demo @ {frequency} hz, {demo.metadata.observation_mode}")
         with tempfile.TemporaryDirectory() as temp_dir:
             file_path = demo.save(Path(temp_dir) / demo.metadata.filename)
-            self._cache_file(file_path, frequency)
+            self._cache_demo_file(file_path, frequency)
 
-    def _cache_file(self, demo_path: Path, frequency: Optional[int] = None):
+    def _cache_demo_file(self, demo_path: Path, frequency: Optional[int] = None):
         metadata = Metadata.from_safetensors(demo_path)
         new_demo_path = self._create_path(metadata, frequency)
         new_demo_path.parent.mkdir(parents=True, exist_ok=True)
@@ -106,23 +110,23 @@ class DemoStore:
             return demos
         demos_dir = self._create_path(metadata, frequency).parent
         demos = self._get_demos(demos_dir, amount)
+        # Return cached demos
         if demos:
             return demos
         # Attempt to get original demos
         if not demos:
-            demos_dir = self._create_path(metadata).parent
-            demos = self._get_demos(demos_dir, amount)
+            max_freq_demos_dir = self._create_path(metadata).parent
+            demos = self._get_demos(max_freq_demos_dir, -1)
         # Attempt to get the lightweight demos
         if not demos and metadata.observation_mode != ObservationMode.Lightweight:
             light_metadata = deepcopy(metadata)
             light_metadata.observation_mode = ObservationMode.Lightweight
-            demos_dir = self._create_path(light_metadata).parent
-            demos = self._get_demos(demos_dir, amount)
+            light_demos_dir = self._create_path(light_metadata).parent
+            demos = self._get_demos(light_demos_dir, -1)
         # Raising exception if there are no demos at this stage
         if not demos:
             raise DemoNotFoundError(metadata)
-        # Caching downloaded demos
-        processed_demos = []
+        # Recreate and cache demos
         with tqdm(
             total=len(demos),
             desc="Caching Demos",
@@ -142,15 +146,14 @@ class DemoStore:
                 if metadata.observation_mode != ObservationMode.Lightweight:
                     demo = DemoConverter.create_demo_in_new_env(demo, env)
                 self.cache_demo(demo, frequency)
-                processed_demos.append(demo)
                 pbar.update()
-        return processed_demos
+        return self._get_demos(demos_dir, amount)
 
     def _get_demos(self, demos_directory: Path, amount: int) -> list[Demo]:
-        self._download_demos()
+        self._cache_demos()
         if not demos_directory.exists():
             return []
-        files = [file for file in demos_directory.iterdir()]
+        files = list(demos_directory.rglob(f"*{SAFETENSORS_SUFFIX}"))
         if amount > len(files):
             raise TooManyDemosRequestedError(amount, len(files))
         elif amount > 0:
@@ -158,12 +161,12 @@ class DemoStore:
             files = files[:amount]
         return [Demo.from_safetensors(file) for file in files]
 
-    def _download_demos(self):
+    def _cache_demos(self):
         if self.cached:
-            logging.info(f"Using cached demonstrations from: {self._cache_path}")
+            logging.info(f"Demos are cached already: {self._cache_path}")
             return
         url = f"{RELEASES_PATH}/v{self._VERSION}/{self._DEMOS}.zip"
-        logging.info(f"Cached demonstrations not found. Downloading from: {url}")
+        logging.info(f"Cached demos not found. Downloading from: {url}")
         try:
             local_filename = wget.download(url)
             logging.info(f"Demos downloaded successfully and saved as {local_filename}")
@@ -171,7 +174,7 @@ class DemoStore:
             logging.error(f"An error occurred while downloading demos: {e}")
             return
         if not zipfile.is_zipfile(local_filename):
-            raise RuntimeError(f"Invalid demonstrations file: {local_filename}")
+            raise RuntimeError(f"Invalid demos file: {local_filename}")
         with zipfile.ZipFile(local_filename, "r") as zip_ref:
             zip_ref.extractall(self._cache_path.parent)
         os.remove(local_filename)

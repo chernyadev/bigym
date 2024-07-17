@@ -53,9 +53,7 @@ setuptools.setup(
             "moviepy",
             "pygame",
             "opencv-python",
-            "pykinect_azure",
             "matplotlib",
-            "mediapy",
         ],
     },
 )

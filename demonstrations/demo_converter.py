@@ -93,6 +93,12 @@ class DemoConverter:
         :param original_freq: Control frequency of the original demo.
         :param robot: Optional existing robot instance to speed-up decimation.
         """
+        if original_freq != CONTROL_FREQUENCY_MAX:
+            raise RuntimeError(
+                f"Demonstrations with frequency != {CONTROL_FREQUENCY_MAX} "
+                f"can't be decimated."
+            )
+
         decimation_rate = int(np.round(original_freq / target_freq))
         robot = robot or demo.metadata.get_robot()
         action_space = robot.action_mode.action_space(decimation_rate)
@@ -144,7 +150,7 @@ class DemoConverter:
         :return: The new demonstration.
         """
         env.reset(seed=demo.seed)
-        new_demo = Demo(demo.metadata)
+        new_demo = Demo(Metadata.from_env(env))
         with tqdm(
             total=len(demo.timesteps),
             desc="Creating Demo",

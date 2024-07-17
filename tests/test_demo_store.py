@@ -203,7 +203,7 @@ class TestDemoStore:
         path = Path(__file__).parent / "data/safetensors"
         demo_files = list(path.rglob(f"*{SAFETENSORS_SUFFIX}"))
         for demo_file in demo_files:
-            temp_demo_store._cache_file(demo_file)
+            temp_demo_store._cache_demo_file(demo_file)
 
         for env_class in ENV_CLASSES:
             for action_mode in ACTION_MODES:

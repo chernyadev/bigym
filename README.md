@@ -102,22 +102,11 @@ Use `ActionModes` to parameterise how you want to control your robot.
 
 ### [Demo Store](demonstrations/demo_store.py)
 
+Please see simple example here: [examples/replay_demo.py](examples/replay_demo.py).
+
 Demonstrations are automatically downloaded from GitHub releases.
-When demonstrations are requested by calling `DemoStore.get_demos()`, the current dataset will be cached locally at `$HOME/.bigym/v0.0.0`.
-Demonstrations with custom observation configurations and frequency are also cached to `$HOME/.bigym/v0.0.0`.
-
-
-```python
-from bigym.action_modes import JointPositionActionMode
-from bigym.envs.reach_target import ReachTarget
-from demonstrations.demo_store import DemoStore
-from demonstrations.utils import Metadata
-
-env = ReachTarget(action_mode=JointPositionActionMode(floating_base=True, absolute=True))
-demo_store = DemoStore()
-metadata = Metadata.from_env(env)
-demos = demo_store.get_demos(metadata, amount=-1)
-```
+When demos are requested by calling `DemoStore.get_demos()`. The current dataset will be cached locally at `$HOME/.bigym/v0.0.0`.
+Demonstrations with custom observations and frequency are also cached to `$HOME/.bigym/v0.0.0`.
 
 **⚠️ Warning:** We are working on the dataset. Not all demonstrations will result in successful completion of the task. Please validate before use.
 

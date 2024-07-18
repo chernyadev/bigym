@@ -157,7 +157,7 @@ class DemoStore:
         return self._get_demos(demos_dir, amount)
 
     def _get_demos(self, demos_dir: Path, amount: int) -> list[Demo]:
-        self._cache_demos()
+        self.pull_demos()
         if not demos_dir.exists():
             return []
         files = list(demos_dir.glob(f"*{SAFETENSORS_SUFFIX}"))
@@ -169,12 +169,13 @@ class DemoStore:
         return [Demo.from_safetensors(file) for file in files]
 
     def _get_demos_count(self, demos_dir: Path) -> int:
-        self._cache_demos()
+        self.pull_demos()
         if not demos_dir.exists():
             return 0
         return len(list(demos_dir.glob(f"*{SAFETENSORS_SUFFIX}")))
 
-    def _cache_demos(self):
+    def pull_demos(self):
+        """Pull demos from repository."""
         if self.cached:
             logging.info(f"Demos are cached already: {self._cache_path}")
             return

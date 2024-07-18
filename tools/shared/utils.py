@@ -134,7 +134,7 @@ CONTROL_PROFILES: dict[str, Type[ControlProfile]] = {
 
 def get_demos_in_dir(directory: Path) -> list[Path]:
     """Get all demonstrations files in directory."""
-    demos = list(directory.rglob(f"*{SAFETENSORS_SUFFIX}"))
+    demos = list(directory.glob(f"*{SAFETENSORS_SUFFIX}"))
     return sorted(demos)
 
 

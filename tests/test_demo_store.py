@@ -119,13 +119,13 @@ class TestDemoStore:
         obs_modes: list[ObservationMode] = list(ObservationMode),
         num_demos_per_env: int = NUM_DEMOS_PER_ENV,
     ):
-        demos_to_store = TestDemoStore.generate_demos(
+        demos_to_cache = TestDemoStore.generate_demos(
             env_classes=env_classes,
             action_modes=action_modes,
             obs_modes=obs_modes,
             num_demos_per_env=num_demos_per_env,
         )
-        for demo in list(demos_to_store.values()):
+        for demo in list(demos_to_cache.values()):
             demo_store.cache_demo(demo)
 
         for env_class in env_classes:
@@ -153,7 +153,7 @@ class TestDemoStore:
                     else:
                         assert len(demos_from_store) == num_demos_per_env
                     for demo_from_store in demos_from_store:
-                        demo_to_store = demos_to_store[demo_from_store.metadata.seed]
+                        demo_to_store = demos_to_cache[demo_from_store.metadata.seed]
                         if obs_mode == ObservationMode.Lightweight:
                             demo_to_store = LightweightDemo.from_demo(demo_to_store)
                         assert_timesteps_equal(demo_from_store, demo_to_store)
@@ -201,7 +201,7 @@ class TestDemoStore:
     def test_correct_file_structure(self, temp_demo_store):
         # Load the demos from the test_data folder and upload them to the cloud
         path = Path(__file__).parent / "data/safetensors"
-        demo_files = list(path.rglob(f"*{SAFETENSORS_SUFFIX}"))
+        demo_files = list(path.glob(f"*{SAFETENSORS_SUFFIX}"))
         for demo_file in demo_files:
             temp_demo_store._cache_demo_file(demo_file)
 

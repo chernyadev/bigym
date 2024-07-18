@@ -71,7 +71,9 @@ class DemoStore:
         :param frequency: Control frequency of the demo.
         """
         if demo.metadata.observation_mode != ObservationMode.Lightweight:
-            if not self.light_demo_exists(demo.metadata, frequency):
+            if frequency is None and not self.light_demo_exists(
+                demo.metadata, frequency
+            ):
                 self.cache_demo(LightweightDemo.from_demo(demo), frequency)
         if self.demo_exists(demo.metadata, frequency):
             return
@@ -103,24 +105,34 @@ class DemoStore:
         demos = []
         if amount == 0:
             return demos
+
+        light_metadata = deepcopy(metadata)
+        light_metadata.observation_mode = ObservationMode.Lightweight
+        light_demos_dir = self._create_path(light_metadata).parent
+        light_demos_count = self._get_demos_count(light_demos_dir)
+
         demos_dir = self._create_path(metadata, frequency).parent
-        demos = self._get_demos(demos_dir, amount)
-        # Return cached demos
-        if demos:
-            return demos
-        # Attempt to get original demos
-        if not demos:
-            max_freq_demos_dir = self._create_path(metadata).parent
-            demos = self._get_demos(max_freq_demos_dir, -1)
-        # Attempt to get the lightweight demos
+        demos_count = self._get_demos_count(demos_dir)
+
+        # Check if demos with requested metadata are cached locally
+        if demos_count == light_demos_count:
+            demos = self._get_demos(demos_dir, amount)
+            # Return locally cached demos
+            if demos:
+                return demos
+
+        # Attempt to get demos at original frequency
+        max_freq_demos_dir = self._create_path(metadata).parent
+        demos = self._get_demos(max_freq_demos_dir, -1)
+
+        # Attempt to get raw, lightweight demos
         if not demos and metadata.observation_mode != ObservationMode.Lightweight:
-            light_metadata = deepcopy(metadata)
-            light_metadata.observation_mode = ObservationMode.Lightweight
-            light_demos_dir = self._create_path(light_metadata).parent
             demos = self._get_demos(light_demos_dir, -1)
+
         # Raising exception if there are no demos at this stage
         if not demos:
             raise DemoNotFoundError(metadata)
+
         # Recreate and cache demos
         with tqdm(
             total=len(demos),
@@ -144,17 +156,23 @@ class DemoStore:
                 pbar.update()
         return self._get_demos(demos_dir, amount)
 
-    def _get_demos(self, demos_directory: Path, amount: int) -> list[Demo]:
+    def _get_demos(self, demos_dir: Path, amount: int) -> list[Demo]:
         self._cache_demos()
-        if not demos_directory.exists():
+        if not demos_dir.exists():
             return []
-        files = list(demos_directory.rglob(f"*{SAFETENSORS_SUFFIX}"))
+        files = list(demos_dir.glob(f"*{SAFETENSORS_SUFFIX}"))
         if amount > len(files):
             raise TooManyDemosRequestedError(amount, len(files))
         elif amount > 0:
-            np.random.shuffle(files)
             files = files[:amount]
+        np.random.shuffle(files)
         return [Demo.from_safetensors(file) for file in files]
+
+    def _get_demos_count(self, demos_dir: Path) -> int:
+        self._cache_demos()
+        if not demos_dir.exists():
+            return 0
+        return len(list(demos_dir.glob(f"*{SAFETENSORS_SUFFIX}")))
 
     def _cache_demos(self):
         if self.cached:

@@ -133,16 +133,19 @@ class DemoStore:
             robot = metadata.get_robot()
             env = metadata.get_env(frequency)
             for demo in demos:
-                demo = DemoConverter.decimate(
-                    demo,
-                    frequency,
-                    CONTROL_FREQUENCY_MAX,
-                    robot=robot,
-                )
-                if metadata.observation_mode != ObservationMode.Lightweight:
-                    demo = DemoConverter.create_demo_in_new_env(demo, env)
-                self.cache_demo(demo, frequency)
-                processed_demos.append(demo)
+                try:
+                    demo = DemoConverter.decimate(
+                        demo,
+                        frequency,
+                        CONTROL_FREQUENCY_MAX,
+                        robot=robot,
+                    )
+                    if metadata.observation_mode != ObservationMode.Lightweight:
+                        demo = DemoConverter.create_demo_in_new_env(demo, env)
+                    self.cache_demo(demo, frequency)
+                    processed_demos.append(demo)
+                except Exception as e:
+                    logging.error(f"Failed to load demo. {str(e)}")
                 pbar.update()
         return processed_demos
 

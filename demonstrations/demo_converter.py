@@ -172,22 +172,3 @@ class DemoConverter:
                 pbar.update()
 
         return new_demo
-
-    @staticmethod
-    def create_demo_using_metadata(
-        demo: Demo,
-        metadata: Metadata,
-        control_frequency: int,
-    ) -> Demo:
-        """Create a new demonstration using metadata.
-
-        Args:
-            demo: The demonstration to convert.
-            metadata: The metadata to use for the new demonstration.
-            control_frequency: Environment control frequency.
-
-        Returns:
-            The new demonstration.
-        """
-        env = metadata.get_env(control_frequency)
-        return DemoConverter.create_demo_in_new_env(demo, env)

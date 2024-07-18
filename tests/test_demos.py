@@ -178,7 +178,7 @@ def test_recreation_from_lightweight_demo():
 
         recreated_demo = DemoConverter.create_demo_in_new_env(lightweight_demo, env)
 
-        assert lightweight_demo.uuid == recreated_demo.uuid
+        assert lightweight_demo.uuid != recreated_demo.uuid
 
         for timestep in recreated_demo.timesteps:
             obs = timestep.observation

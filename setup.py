@@ -36,6 +36,8 @@ core_requirements = [
     "wget",
     "mojo @ git+https://git@github.com/stepjam/mojo.git@dev",
     "pyyaml",
+    "dearpygui",
+    "pyopenxr",
 ]
 
 setuptools.setup(
@@ -48,7 +50,7 @@ setuptools.setup(
     install_requires=core_requirements,
     package_data={"": [str(p.resolve()) for p in Path("bigym/envs/xmls").glob("**/*")]},
     extras_require={
-        "dev": ["pre-commit", "pytest", "pyopenxr", "dearpygui"],
+        "dev": ["pre-commit", "pytest"],
         "examples": [
             "moviepy",
             "pygame",

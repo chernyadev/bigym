@@ -150,13 +150,14 @@ class DemoConverter:
         :return: The new demonstration.
         """
         env.reset(seed=demo.seed)
-        new_demo = Demo(Metadata.from_env(env))
+        metadata = Metadata.from_env(env)
+        metadata.uuid = demo.metadata.uuid
+        new_demo = Demo(metadata)
         with tqdm(
             total=len(demo.timesteps),
             desc="Creating Demo",
             unit="step",
             leave=False,
-            position=0,
         ) as pbar:
             for timestep in demo.timesteps:
                 action = timestep.executed_action

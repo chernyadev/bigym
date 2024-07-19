@@ -139,11 +139,13 @@ class DemoStore:
             desc="Caching Demos",
             unit="demo",
             leave=True,
-            position=0,
         ) as pbar:
             robot = metadata.get_robot()
             env = metadata.get_env(frequency)
             for demo in demos:
+                if self.demo_exists(metadata, frequency, demo.uuid):
+                    pbar.update()
+                    continue
                 demo = DemoConverter.decimate(
                     demo,
                     frequency,
@@ -180,7 +182,7 @@ class DemoStore:
             logging.info(f"Demos are cached already: {self._cache_path}")
             return
         url = f"{DEMO_RELEASES}/v{DEMO_VERSION}/{self._DEMOS}.zip"
-        logging.info(f"Cached demos not found. Downloading from: {url}")
+        logging.warning(f"Cached demos not found. Downloading from: {url}")
         try:
             local_filename = wget.download(url)
             logging.info(f"Demos downloaded successfully and saved as {local_filename}")
@@ -234,25 +236,38 @@ class DemoStore:
         return path / metadata.filename
 
     def light_demo_exists(
-        self, metadata: Metadata, frequency: Optional[int] = None
+        self,
+        metadata: Metadata,
+        frequency: Optional[int] = None,
+        uuid_override: Optional[str] = None,
     ) -> bool:
         """Check if a lightweight demo exists.
 
         :param metadata: The metadata for the demo.
         :param frequency: Control frequency.
+        :param uuid_override: Demo uuid.
 
         :return: True if the lightweight demo exists, False otherwise.
         """
         light_metadata = deepcopy(metadata)
         light_metadata.observation_mode = ObservationMode.Lightweight
-        return self.demo_exists(light_metadata, frequency)
+        return self.demo_exists(light_metadata, frequency, uuid_override)
 
-    def demo_exists(self, metadata: Metadata, frequency: Optional[int] = None) -> bool:
+    def demo_exists(
+        self,
+        metadata: Metadata,
+        frequency: Optional[int] = None,
+        uuid_override: Optional[str] = None,
+    ) -> bool:
         """Check if a demo exists.
 
         :param metadata: The metadata for the demo.
         :param frequency: Control frequency.
+        :param uuid_override: Demo uuid.
 
         :return: True if the demo exists, False otherwise.
         """
+        if uuid_override:
+            metadata = deepcopy(metadata)
+            metadata.uuid = uuid_override
         return self._create_path(metadata, frequency).exists()

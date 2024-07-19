@@ -124,14 +124,10 @@ class Metadata:
 
     def ready_for_safetensors(self) -> dict:
         """Prepare metadata for safetensors."""
-        env_data = asdict(self.environment_data)
-        for cam in env_data["observation_config"]["cameras"]:
-            cam["resolution"] = list(cam["resolution"])
-
         return {
             "seed": json.dumps(self.seed),
             "observation_mode": json.dumps(self.observation_mode.value),
-            "environment_data": json.dumps(env_data),
+            "environment_data": json.dumps(asdict(self.environment_data)),
             "package_versions": json.dumps(self.package_versions),
             "date": json.dumps(self.date),
             "uuid": json.dumps(self.uuid),

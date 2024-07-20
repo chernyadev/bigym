@@ -93,6 +93,12 @@ class DemoConverter:
         :param original_freq: Control frequency of the original demo.
         :param robot: Optional existing robot instance to speed-up decimation.
         """
+        if original_freq != CONTROL_FREQUENCY_MAX:
+            raise RuntimeError(
+                f"Demonstrations with frequency != {CONTROL_FREQUENCY_MAX} "
+                f"can't be decimated."
+            )
+
         decimation_rate = int(np.round(original_freq / target_freq))
         robot = robot or demo.metadata.get_robot()
         action_space = robot.action_mode.action_space(decimation_rate)
@@ -144,13 +150,14 @@ class DemoConverter:
         :return: The new demonstration.
         """
         env.reset(seed=demo.seed)
-        new_demo = Demo(demo.metadata)
+        metadata = Metadata.from_env(env)
+        metadata.uuid = demo.metadata.uuid
+        new_demo = Demo(metadata)
         with tqdm(
             total=len(demo.timesteps),
             desc="Creating Demo",
             unit="step",
             leave=False,
-            position=0,
         ) as pbar:
             for timestep in demo.timesteps:
                 action = timestep.executed_action
@@ -166,22 +173,3 @@ class DemoConverter:
                 pbar.update()
 
         return new_demo
-
-    @staticmethod
-    def create_demo_using_metadata(
-        demo: Demo,
-        metadata: Metadata,
-        control_frequency: int,
-    ) -> Demo:
-        """Create a new demonstration using metadata.
-
-        Args:
-            demo: The demonstration to convert.
-            metadata: The metadata to use for the new demonstration.
-            control_frequency: Environment control frequency.
-
-        Returns:
-            The new demonstration.
-        """
-        env = metadata.get_env(control_frequency)
-        return DemoConverter.create_demo_in_new_env(demo, env)

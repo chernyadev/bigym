@@ -108,8 +108,17 @@ Use `ActionModes` to parameterise how you want to control your robot.
 
 ### [Demo Store](demonstrations/demo_store.py)
 
-Currently, we store demos using Google Cloud Buckets. To use this store you need to first [install](https://cloud.google.com/sdk/docs/install) gcloud and authenticate.
+Please see simple example here: [examples/replay_demo.py](examples/replay_demo.py).
 
+Demonstrations are automatically downloaded from GitHub releases.
+When demos are requested by calling `DemoStore.get_demos()`. The current dataset will be cached locally at `$HOME/.bigym/v0.0.0`.
+Demonstrations with custom observations and frequency are also cached to `$HOME/.bigym/v0.0.0`.
+
+**⚠️ Warning:** We are working on the dataset. Not all demonstrations will result in successful completion of the task. Please validate before use.
+
+**⚠️ Warning:** The current dataset includes demonstrations for the following action modes only:
+- `JointPositionActionMode(floating_base=True, absolute=True)`
+- `JointPositionActionMode(floating_base=True, absolute=False)`
 
 ### [Demo Player](tools/demo_player/main.py)
 

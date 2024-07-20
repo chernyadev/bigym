@@ -14,6 +14,20 @@ class CameraConfig:
     pos: Optional[tuple[float, float, float]] = None
     quat: Optional[tuple[float, float, float, float]] = None
 
+    def __post_init__(self):
+        """Validation."""
+        assert len(self.resolution) == 2
+        if not isinstance(self.resolution, tuple):
+            self.resolution = tuple(self.resolution)
+        if self.pos is not None:
+            assert len(self.pos) == 3
+            if not isinstance(self.pos, tuple):
+                self.pos = tuple(self.pos)
+        if self.quat is not None:
+            assert len(self.quat) == 3
+            if not isinstance(self.quat, tuple):
+                self.quat = tuple(self.quat)
+
     @classmethod
     def from_safetensors_metadata(cls, metadata: dict):
         """Get metadata from a safetensor metadata dict."""

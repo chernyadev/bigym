@@ -10,7 +10,7 @@ class DemoPlayer:
 
     def __init__(self):
         """Init."""
-        PrimaryWindow(DemoPlayerWindow, title="Demo Player", height=685, resizable=True)
+        PrimaryWindow(DemoPlayerWindow, title="Demo Player", resizable=True)
 
 
 if __name__ == "__main__":

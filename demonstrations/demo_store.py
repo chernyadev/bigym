@@ -1,18 +1,23 @@
 """Script for uploading the collected demos."""
+import logging
+import os
 import warnings
+import zipfile
+from typing import Optional
 
 import numpy as np
 import tempfile
-from cloudpathlib import CloudPath
 from pathlib import Path
 from copy import deepcopy
 
+import wget
 from tqdm import tqdm
 
 from bigym.bigym_env import CONTROL_FREQUENCY_MAX
+from bigym.const import CACHE_PATH, DEMO_RELEASES, DEMO_VERSION
+from demonstrations.const import SAFETENSORS_SUFFIX
 from demonstrations.utils import Metadata, ObservationMode
 from demonstrations.demo import Demo, LightweightDemo
-from demonstrations.const import SAFETENSORS_SUFFIX
 from demonstrations.demo_converter import DemoConverter
 
 
@@ -50,87 +55,43 @@ class TooManyDemosRequestedError(Exception):
 class DemoStore:
     """Class to help storing and retrieving demos from a database."""
 
-    def __init__(self, path: CloudPath):
-        """Init.
+    _DEMOS = "demonstrations"
+    _LOCK = ".lock"
 
-        :param path: The path to the store.
-        """
-        self._path = path
+    def __init__(self, cache_root: Optional[Path] = None):
+        """Init."""
+        self._cache_root = cache_root or CACHE_PATH
+        self._cache_path: Path = self._cache_root / self._DEMOS / DEMO_VERSION
+        self._cache_path.mkdir(parents=True, exist_ok=True)
 
-    @classmethod
-    def google_cloud(cls, bucket_path: str = "rll_data/bigym"):
-        """For accessing a google cloud bucket.
-
-        :param bucket_path: Path to the bucket.
-        """
-        return cls(CloudPath(f"gs://{bucket_path}"))
-
-    def upload_safetensors(self, file_paths: list[Path]):
-        """Upload the safetensors to the store.
-
-        :param file_paths: List of paths to the safetensors.
-        """
-        for file_path in file_paths:
-            self._upload_safetensor(file_path)
-
-    def _upload_safetensor(self, file_path: Path):
-        """Upload the safetensor to the store.
-
-        :param file_path: Path to the safetensor.
-        """
-        new_file = self._create_path(Metadata.from_safetensors(file_path))
-        new_file.upload_from(file_path)
-
-    def upload_demos(self, demos: list[Demo]):
-        """Upload demos to the store.
-
-        :param demos: List of demos to upload.
-        """
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_dir = Path(temp_dir)
-            with tqdm(
-                total=len(demos),
-                desc="Uploading Demos",
-                unit="demo",
-                leave=False,
-                position=0,
-            ) as pbar:
-                for demo in demos:
-                    self._upload_demo(demo, temp_dir)
-                    pbar.update()
-
-    def upload_demo(self, demo: Demo):
-        """Upload a demo to the store.
+    def cache_demo(self, demo: Demo, frequency: Optional[int] = None):
+        """Add a demo to the local cache.
 
         :param demo: The demo to upload.
+        :param frequency: Control frequency of the demo.
         """
-        with tempfile.TemporaryDirectory() as temp_dir:
-            self._upload_demo(demo, Path(temp_dir))
-
-    def _upload_demo(self, demo: Demo, local_dir: Path):
-        """Upload the demo to the store.
-
-        :param demo: The demo to upload.
-        :param local_dir: The local directory to store the demo before uploading.
-        """
-        if isinstance(local_dir, str):
-            local_dir = Path(local_dir)
         if demo.metadata.observation_mode != ObservationMode.Lightweight:
-            if not self.lightweight_demo_exists(demo.metadata):
-                lightweight_demo = LightweightDemo.from_demo(demo)
-                self._upload_demo(lightweight_demo, local_dir)
-        if self.demo_exists(demo.metadata):
+            if frequency is None and not self.light_demo_exists(
+                demo.metadata, frequency
+            ):
+                self.cache_demo(LightweightDemo.from_demo(demo), frequency)
+        if self.demo_exists(demo.metadata, frequency):
             return
-        new_file = self._create_path(demo.metadata)
-        file_path = demo.save(local_dir / demo.metadata.filename)
-        new_file.upload_from(file_path)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file_path = demo.save(Path(temp_dir) / demo.metadata.filename)
+            self._cache_demo_file(file_path, frequency)
+
+    def _cache_demo_file(self, demo_path: Path, frequency: Optional[int] = None):
+        metadata = Metadata.from_safetensors(demo_path)
+        new_demo_path = self._create_path(metadata, frequency)
+        new_demo_path.parent.mkdir(parents=True, exist_ok=True)
+        new_demo_path.write_bytes(demo_path.read_bytes())
 
     def get_demos(
         self,
         metadata: Metadata,
         amount: int = -1,
         frequency: int = CONTROL_FREQUENCY_MAX,
-        only_successful: bool = False,
     ) -> list[Demo]:
         """Download the demos matching the metadata.
 
@@ -138,101 +99,128 @@ class DemoStore:
         :param amount: The amount of demos to get.
             If < 0, all demonstrations are returned.
         :param frequency: Demo control frequency.
-        :param only_successful: Return only successful demos.
-        :param always_decimate: Decimate demo even if frequency is same.
 
         :return: The demos matching the metadata.
         """
         demos = []
         if amount == 0:
             return demos
-        remote_dir = self._create_path(metadata).parent
-        demos = self._download_demos(remote_dir, amount)
-        # If requested demos do not exist, try to get the lightweight demos
+
+        light_metadata = deepcopy(metadata)
+        light_metadata.observation_mode = ObservationMode.Lightweight
+        light_demos_dir = self._create_path(light_metadata).parent
+        light_demos_count = self._get_demos_count(light_demos_dir)
+
+        demos_dir = self._create_path(metadata, frequency).parent
+        demos_count = self._get_demos_count(demos_dir)
+
+        # Check if demos with requested metadata are cached locally
+        if demos_count == light_demos_count:
+            demos = self._get_demos(demos_dir, amount)
+            # Return locally cached demos
+            if demos:
+                return demos
+
+        # Attempt to get demos at original frequency
+        max_freq_demos_dir = self._create_path(metadata).parent
+        demos = self._get_demos(max_freq_demos_dir, -1)
+
+        # Attempt to get raw, lightweight demos
         if not demos and metadata.observation_mode != ObservationMode.Lightweight:
-            light_metadata = deepcopy(metadata)
-            light_metadata.observation_mode = ObservationMode.Lightweight
-            remote_dir = self._create_path(light_metadata).parent
-            demos = self._download_demos(remote_dir, amount)
+            demos = self._get_demos(light_demos_dir, -1)
+
         # Raising exception if there are no demos at this stage
         if not demos:
             raise DemoNotFoundError(metadata)
 
-        # Process downloaded demos
-        processed_demos = []
+        # Recreate and cache demos
         with tqdm(
             total=len(demos),
-            desc="Processing Demos",
+            desc="Caching Demos",
             unit="demo",
             leave=True,
-            position=0,
         ) as pbar:
             robot = metadata.get_robot()
             env = metadata.get_env(frequency)
             for demo in demos:
+                if self.demo_exists(metadata, frequency, demo.uuid):
+                    pbar.update()
+                    continue
                 demo = DemoConverter.decimate(
                     demo,
                     frequency,
                     CONTROL_FREQUENCY_MAX,
                     robot=robot,
                 )
-                if (
-                    metadata.observation_mode != ObservationMode.Lightweight
-                    or only_successful
-                ):
+                if metadata.observation_mode != ObservationMode.Lightweight:
                     demo = DemoConverter.create_demo_in_new_env(demo, env)
-                if not only_successful:
-                    processed_demos.append(demo)
-                elif np.any([bool(timestep.reward) for timestep in demo.timesteps]):
-                    processed_demos.append(demo)
+                self.cache_demo(demo, frequency)
                 pbar.update()
-        return processed_demos
+        return self._get_demos(demos_dir, amount)
 
-    @staticmethod
-    def _download_demos(remote_dir: CloudPath, amount: int) -> list[Demo]:
-        demos = []
-        if not remote_dir.exists():
-            return demos
-        with tempfile.TemporaryDirectory() as temp_dir:
-            remote_dir.download_to(temp_dir)
-            local_dir = Path(temp_dir)
-            files = [file for file in remote_dir.iterdir()]
+    def _get_demos(self, demos_dir: Path, amount: int) -> list[Demo]:
+        self.pull_demos()
+        if not demos_dir.exists():
+            return []
+        files = list(demos_dir.glob(f"*{SAFETENSORS_SUFFIX}"))
+        if amount > len(files):
+            raise TooManyDemosRequestedError(amount, len(files))
+        elif amount > 0:
+            files = files[:amount]
+        np.random.shuffle(files)
+        return [Demo.from_safetensors(file) for file in files]
 
-            # If the amount is -1, return all demos
-            if amount > len(files):
-                raise TooManyDemosRequestedError(amount, len(files))
-            elif amount > 0:
-                # If the amount is > 0 and < len(files), shuffle the files
-                np.random.shuffle(files)
-                files = files[:amount]
+    def _get_demos_count(self, demos_dir: Path) -> int:
+        self.pull_demos()
+        if not demos_dir.exists():
+            return 0
+        return len(list(demos_dir.glob(f"*{SAFETENSORS_SUFFIX}")))
 
-            # Download the demos
-            for file in files:
-                if file.suffix == SAFETENSORS_SUFFIX:
-                    demos.append(Demo.from_safetensors(local_dir / file))
-        return demos
+    def pull_demos(self):
+        """Pull demos from repository."""
+        if self.cached:
+            logging.info(f"Demos are cached already: {self._cache_path}")
+            return
+        url = f"{DEMO_RELEASES}/v{DEMO_VERSION}/{self._DEMOS}.zip"
+        logging.warning(f"Cached demos not found. Downloading from: {url}")
+        try:
+            local_filename = wget.download(url)
+            logging.info(f"Demos downloaded successfully and saved as {local_filename}")
+        except Exception as e:
+            logging.error(f"An error occurred while downloading demos: {e}")
+            return
+        if not zipfile.is_zipfile(local_filename):
+            raise RuntimeError(f"Invalid demos file: {local_filename}")
+        with zipfile.ZipFile(local_filename, "r") as zip_ref:
+            zip_ref.extractall(self._cache_path)
+        os.remove(local_filename)
+        self.cached = True
 
-    def list_demo_paths(self, metadata: Metadata) -> list[CloudPath]:
-        """List the demos matching the metadata.
+    @property
+    def cached(self):
+        """Return True if demos are cached locally, else False."""
+        lock_file = self._cache_path / self._LOCK
+        return lock_file.exists()
 
-        :param metadata: The metadata to match the demos.
+    @cached.setter
+    def cached(self, value: bool):
+        """Set local cache status."""
+        lock_file = self._cache_path / self._LOCK
+        if value:
+            lock_file.touch(exist_ok=True)
+        elif lock_file.exists():
+            os.remove(lock_file)
 
-        :return: The paths to the demos matching the metadata.
-        """
-        remote_dir = self._create_path(metadata).parent
-        if not remote_dir.exists():
+    def list_demo_paths(self, metadata: Metadata) -> list[Path]:
+        """List the demos matching the metadata."""
+        demo_dir = self._create_path(metadata).parent
+        if not demo_dir.exists():
             warnings.warn(f"No demos found for {metadata}.")
             return []
-        return [p for p in remote_dir.iterdir()]
+        return [p for p in demo_dir.iterdir()]
 
-    def _create_path(self, metadata: Metadata) -> CloudPath:
-        """Create a path for the demo.
-
-        :param metadata: The metadata for the demo.
-
-        :return: The path to the demo.
-        """
-        path = self._path
+    def _create_path(self, metadata: Metadata, frequency: Optional[int] = None) -> Path:
+        path = self._cache_path
         if metadata.env_cls.DEFAULT_ROBOT != metadata.robot_cls:
             path /= metadata.environment_data.robot_name
         path = (
@@ -243,24 +231,43 @@ class DemoStore:
         )
         if metadata.observation_mode == ObservationMode.Pixel:
             path /= metadata.environment_data.camera_description
+        if frequency:
+            path /= f"{frequency}hz"
         return path / metadata.filename
 
-    def lightweight_demo_exists(self, metadata: Metadata) -> bool:
+    def light_demo_exists(
+        self,
+        metadata: Metadata,
+        frequency: Optional[int] = None,
+        uuid_override: Optional[str] = None,
+    ) -> bool:
         """Check if a lightweight demo exists.
 
         :param metadata: The metadata for the demo.
+        :param frequency: Control frequency.
+        :param uuid_override: Demo uuid.
 
         :return: True if the lightweight demo exists, False otherwise.
         """
-        lightweight_metadata = deepcopy(metadata)
-        lightweight_metadata.observation_mode = ObservationMode.Lightweight
-        return self.demo_exists(lightweight_metadata)
+        light_metadata = deepcopy(metadata)
+        light_metadata.observation_mode = ObservationMode.Lightweight
+        return self.demo_exists(light_metadata, frequency, uuid_override)
 
-    def demo_exists(self, metadata: Metadata) -> bool:
+    def demo_exists(
+        self,
+        metadata: Metadata,
+        frequency: Optional[int] = None,
+        uuid_override: Optional[str] = None,
+    ) -> bool:
         """Check if a demo exists.
 
         :param metadata: The metadata for the demo.
+        :param frequency: Control frequency.
+        :param uuid_override: Demo uuid.
 
         :return: True if the demo exists, False otherwise.
         """
-        return self._create_path(metadata).exists()
+        if uuid_override:
+            metadata = deepcopy(metadata)
+            metadata.uuid = uuid_override
+        return self._create_path(metadata, frequency).exists()

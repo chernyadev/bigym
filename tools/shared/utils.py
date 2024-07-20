@@ -1,5 +1,4 @@
 """Shared entities."""
-import os
 from enum import Enum
 from pathlib import Path
 from typing import Type, Union, Callable, Optional
@@ -135,14 +134,8 @@ CONTROL_PROFILES: dict[str, Type[ControlProfile]] = {
 
 def get_demos_in_dir(directory: Path) -> list[Path]:
     """Get all demonstrations files in directory."""
-    files = os.listdir(directory)
-    demos: list[Path] = []
-    for file in files:
-        demo_path = directory / file
-        if demo_path.is_file() and demo_path.suffix == SAFETENSORS_SUFFIX:
-            demos.append(Path(demo_path))
-    demos = sorted(demos)
-    return demos
+    demos = list(directory.glob(f"*{SAFETENSORS_SUFFIX}"))
+    return sorted(demos)
 
 
 def select_directory(default_path: Union[Path, str], callback: Callable[[Path], None]):

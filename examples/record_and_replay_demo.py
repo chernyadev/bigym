@@ -8,8 +8,6 @@ from bigym.envs.reach_target import ReachTarget
 from demonstrations.demo_recorder import DemoRecorder
 from demonstrations.demo_converter import DemoConverter
 from demonstrations.demo import Demo
-from examples.utils import init_subplots, update_plots
-
 
 render = False
 cam = "head"
@@ -19,6 +17,31 @@ env = ReachTarget(
     action_mode=JointPositionActionMode(floating_base=True, absolute=True),
     render_mode="human" if render else None,
 )
+
+
+def update_plots(axs, requested, expected, actual, xlim=None, ylim=None):
+    """Update plots."""
+    for i, (r, e, a) in enumerate(zip(requested, expected, actual)):
+        axs[i].clear()  # Clear previous plot
+        axs[i].plot(r, label="Request")
+        axs[i].plot(e, label="Expected")
+        axs[i].plot(a, label="Actual")
+        axs[i].set_title(f"Variable {i}")
+        axs[i].legend()
+        if xlim is not None:
+            axs[i].set_xlim(xlim)
+        if ylim is not None:
+            axs[i].set_ylim(ylim)
+
+    plt.tight_layout()
+
+
+def init_subplots(n):
+    """Initialize subplots."""
+    fig = plt.figure(figsize=(8, 2 * n))
+    axs = [fig.add_subplot(n, 1, i + 1) for i in range(n)]
+    return fig, axs
+
 
 with tempfile.TemporaryDirectory() as temp_dir:
     demo_recorder = DemoRecorder(temp_dir)

@@ -48,7 +48,11 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     python_requires=">=3.10",
     install_requires=core_requirements,
-    package_data={"": [str(p.resolve()) for p in Path("bigym/envs/xmls").glob("**/*")]},
+    package_data={
+        "": [str(p.resolve()) for p in Path("bigym/envs/xmls").glob("**/*")]
+        + [str(p.resolve()) for p in Path("bigym/envs/presets").glob("**/*.yaml")]
+        + [str(p.resolve()) for p in Path("vr/viewer/xmls").glob("**/*")]
+    },
     extras_require={
         "dev": ["pre-commit", "pytest"],
         "examples": [

@@ -232,9 +232,9 @@ class BiGymEnv(gym.Env):
         for camera_config in self._observation_config.cameras:
             _, camera = cameras_map[camera_config.name]
             if camera_config.pos is not None:
-                camera.mjcf.pos = camera_config.pos
+                camera.set_position(np.array(camera_config.pos))
             if camera_config.quat is not None:
-                camera.mjcf.quat = camera_config.quat
+                camera.set_quaternion(np.array(camera_config.quat))
         return cameras_map
 
     def _close_renderers(self):

@@ -24,7 +24,7 @@ class CameraConfig:
             if not isinstance(self.pos, tuple):
                 self.pos = tuple(self.pos)
         if self.quat is not None:
-            assert len(self.quat) == 3
+            assert len(self.quat) == 4
             if not isinstance(self.quat, tuple):
                 self.quat = tuple(self.quat)
 

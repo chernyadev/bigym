@@ -47,14 +47,14 @@ class ArmConfig:
     Attributes:
         site: The site on the robot where the gripper could be attached.
         links: A list of body links of the hand.
-        writs_dof: Optional wrist DOF which could be added to the arm.
+        wrist_dof: Optional wrist DOF which could be added to the arm.
         offset_position: Mounting positional offset.
         offset_euler: Mounting euler offset.
     """
 
     site: str
     links: list[str]
-    writs_dof: Optional[Dof] = None
+    wrist_dof: Optional[Dof] = None
     offset_position: np.ndarray = field(default_factory=lambda: np.zeros(3))
     offset_euler: np.ndarray = field(default_factory=lambda: np.zeros(3))
 

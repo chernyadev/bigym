@@ -25,7 +25,7 @@ H1_LEFT_ARM = ArmConfig(
         "left_shoulder_yaw_link",
         "left_elbow_link",
     ],
-    writs_dof=H1_WRIST_DOF,
+    wrist_dof=H1_WRIST_DOF,
     offset_euler=np.array([np.pi / 2, np.pi / 2, 0]),
 )
 H1_RIGHT_ARM = ArmConfig(
@@ -36,7 +36,7 @@ H1_RIGHT_ARM = ArmConfig(
         "right_shoulder_yaw_link",
         "right_elbow_link",
     ],
-    writs_dof=H1_WRIST_DOF,
+    wrist_dof=H1_WRIST_DOF,
     offset_euler=np.array([np.pi / 2, np.pi / 2, 0]),
 )
 H1_ACTUATORS = {

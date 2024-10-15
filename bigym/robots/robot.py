@@ -207,7 +207,7 @@ class Robot(ABC):
         # Configure wrist joints
         self._wrist_sites: dict[HandSide, Site] = {}
         for side, arm_config in self.config.arms.items():
-            if arm_config.writs_dof:
+            if arm_config.wrist_dof:
                 self._add_wrist(model, side, arm_config)
             self._wrist_sites[side]: Site = Site.get(
                 self._mojo, arm_config.site, mojo_model
@@ -319,14 +319,14 @@ class Robot(ABC):
         wrist.add("site", name=site_name)
         joint = wrist.add(
             "joint",
-            type=arm_config.writs_dof.joint_type.value,
+            type=arm_config.wrist_dof.joint_type.value,
             name=join_name,
-            axis=arm_config.writs_dof.axis,
-            range=arm_config.writs_dof.joint_range,
+            axis=arm_config.wrist_dof.axis,
+            range=arm_config.wrist_dof.joint_range,
         )
         model.actuator.add(
             "motor",
             name=join_name,
             joint=joint,
-            ctrlrange=arm_config.writs_dof.action_range,
+            ctrlrange=arm_config.wrist_dof.action_range,
         )
